@@ -20,7 +20,7 @@ class TestCorpusAPIEndpoints:
         # Act
         response = client.post(
             "/corpus/huggingface",
-            params={
+            json={
                 "name": "test_corpus",
                 "dataset_name": "test-dataset",
                 "split": "train",
@@ -48,7 +48,7 @@ class TestCorpusAPIEndpoints:
         # Act
         response = client.post(
             "/corpus/huggingface",
-            params={
+            json={
                 "name": "test_corpus",
                 "dataset_name": "test-dataset",
                 "config_name": "test-config",
@@ -77,7 +77,7 @@ class TestCorpusAPIEndpoints:
         # Act
         response = client.post(
             "/corpus/huggingface",
-            params={
+            json={
                 "name": "test_corpus",
                 "dataset_name": "test-dataset",
                 "split": "train",
@@ -101,7 +101,7 @@ class TestCorpusAPIEndpoints:
         # Act
         response = client.post(
             "/corpus/huggingface",
-            params={
+            json={
                 "name": "test_corpus",
                 "dataset_name": "test-dataset",
                 "split": "train",
@@ -125,7 +125,7 @@ class TestCorpusAPIEndpoints:
         # Act
         response = client.post(
             "/corpus/huggingface",
-            params={
+            json={
                 "name": "test_corpus",
                 "dataset_name": "test-dataset",
                 "split": "train",
@@ -150,7 +150,7 @@ class TestCorpusAPIEndpoints:
         # Act
         response = client.post(
             "/corpus/huggingface",
-            params={
+            json={
                 "name": "test_corpus",
                 "dataset_name": "test-dataset",
                 "split": "train",
@@ -185,7 +185,7 @@ class TestCorpusAPIEndpoints:
         
         create_response = client.post(
             "/corpus/huggingface",
-            params={
+            json={
                 "name": "test_corpus",
                 "dataset_name": "test-dataset",
                 "split": "train",
@@ -216,7 +216,7 @@ class TestCorpusAPIEndpoints:
         
         create_response = client.post(
             "/corpus/huggingface",
-            params={
+            json={
                 "name": "test_corpus",
                 "dataset_name": "test-dataset",
                 "split": "train",
@@ -260,7 +260,7 @@ class TestCorpusAPIEndpoints:
         
         create_response = client.post(
             "/corpus/huggingface",
-            params={
+            json={
                 "name": "test_corpus",
                 "dataset_name": "test-dataset",
                 "split": "train",
@@ -296,7 +296,7 @@ class TestCorpusAPIEndpoints:
         
         create_response = client.post(
             "/corpus/huggingface",
-            params={
+            json={
                 "name": "test_corpus",
                 "dataset_name": "test-dataset",
                 "split": "train",
