@@ -358,27 +358,60 @@
                         <div class="tab-pane fade" id="huggingface-tab">
                             <form id="huggingface-form">
                                 <div class="mb-3">
-                                    <label class="form-label">Corpus Name</label>
-                                    <input type="text" class="form-control" id="hf-name" required>
-                                </div>
-                                <div class="mb-3">
                                     <label class="form-label">Dataset Name</label>
-                                    <input type="text" class="form-control" id="hf-dataset" placeholder="e.g., EleutherAI/wikitext_document_level" required>
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" id="hf-dataset" placeholder="e.g., EleutherAI/wikitext_document_level" required>
+                                        <button type="button" class="btn btn-outline-secondary" onclick="loadDatasetMetadata()">
+                                            <i class="fas fa-search"></i> Load Info
+                                        </button>
+                                    </div>
+                                    <small class="form-text text-muted">Enter a HuggingFace dataset name and click "Load Info" to populate available options</small>
                                 </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Config Name (Optional)</label>
-                                    <input type="text" class="form-control" id="hf-config" placeholder="e.g., wikitext-103-raw-v1">
-                                    <small class="form-text text-muted">Required for datasets with multiple configs like EleutherAI/wikitext_document_level</small>
+                                
+                                <div id="dataset-loading" class="mb-3" style="display: none;">
+                                    <div class="d-flex align-items-center">
+                                        <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                        <span>Loading dataset information...</span>
+                                    </div>
                                 </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Split</label>
-                                    <input type="text" class="form-control" id="hf-split" value="train">
+                                
+                                <div id="dataset-info" style="display: none;">
+                                    <div class="mb-3">
+                                        <label class="form-label">Corpus Name</label>
+                                        <input type="text" class="form-control" id="hf-name" required>
+                                        <small class="form-text text-muted">This will be auto-filled with the dataset name</small>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label">Config Name</label>
+                                        <select class="form-select" id="hf-config">
+                                            <option value="">Select a config...</option>
+                                        </select>
+                                        <small class="form-text text-muted">Select the dataset configuration to use</small>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label">Split</label>
+                                        <select class="form-select" id="hf-split">
+                                            <option value="">Select a split...</option>
+                                        </select>
+                                        <small class="form-text text-muted">Select the dataset split to use</small>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label">Text Column</label>
+                                        <select class="form-select" id="hf-column">
+                                            <option value="">Select a column...</option>
+                                        </select>
+                                        <small class="form-text text-muted">Select the column containing text data</small>
+                                    </div>
+                                    
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-download me-2"></i>Load Dataset
+                                    </button>
                                 </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Text Column</label>
-                                    <input type="text" class="form-control" id="hf-column" value="text">
-                                </div>
-                                <button type="submit" class="btn btn-primary">Load Dataset</button>
                             </form>
                         </div>
                     </div>
@@ -393,6 +426,7 @@
         // Global variables
         let availableModels = {};
         let currentSection = 'dashboard';
+        let datasetMetadata = null;
 
         // Initialize the application
         document.addEventListener('DOMContentLoaded', function() {
@@ -400,6 +434,9 @@
             loadDashboard();
             loadCorpora();
             loadEvaluations();
+            
+            // Add event listener for config dropdown change
+            document.getElementById('hf-config').addEventListener('change', updateSplitsAndColumns);
         });
 
         // Navigation
@@ -571,6 +608,106 @@
             modal.show();
         }
 
+        // HuggingFace dataset metadata functions
+        async function loadDatasetMetadata() {
+            const datasetName = document.getElementById('hf-dataset').value.trim();
+            if (!datasetName) {
+                showAlert('Please enter a dataset name first', 'warning');
+                return;
+            }
+            
+            // Show loading state
+            document.getElementById('dataset-loading').style.display = 'block';
+            document.getElementById('dataset-info').style.display = 'none';
+            
+            try {
+                const response = await axios.get(`/corpus/huggingface/metadata?dataset_name=${encodeURIComponent(datasetName)}`);
+                datasetMetadata = response.data;
+                
+                // Populate form fields
+                populateDatasetForm(datasetMetadata);
+                
+                // Show the form
+                document.getElementById('dataset-info').style.display = 'block';
+                
+            } catch (error) {
+                showAlert('Error loading dataset metadata: ' + (error.response?.data?.detail || error.message), 'danger');
+            } finally {
+                document.getElementById('dataset-loading').style.display = 'none';
+            }
+        }
+        
+        function populateDatasetForm(metadata) {
+            // Set corpus name to dataset name
+            document.getElementById('hf-name').value = metadata.dataset_name;
+            
+            // Populate config dropdown
+            const configSelect = document.getElementById('hf-config');
+            configSelect.innerHTML = '<option value="">Select a config...</option>';
+            
+            metadata.configs.forEach(config => {
+                const option = document.createElement('option');
+                option.value = config.name || '';
+                option.textContent = config.name || 'Default';
+                configSelect.appendChild(option);
+            });
+            
+            // Set default config if available
+            if (metadata.default_config !== null) {
+                configSelect.value = metadata.default_config;
+            }
+            
+            // Update splits and columns when config changes
+            updateSplitsAndColumns();
+        }
+        
+        function updateSplitsAndColumns() {
+            if (!datasetMetadata) return;
+            
+            const configName = document.getElementById('hf-config').value;
+            const config = datasetMetadata.configs.find(c => (c.name || '') === (configName || ''));
+            
+            if (!config) return;
+            
+            // Populate splits dropdown
+            const splitSelect = document.getElementById('hf-split');
+            splitSelect.innerHTML = '<option value="">Select a split...</option>';
+            
+            config.splits.forEach(split => {
+                const option = document.createElement('option');
+                option.value = split;
+                option.textContent = split;
+                splitSelect.appendChild(option);
+            });
+            
+            // Set default split to 'train' if available
+            if (config.splits.includes('train')) {
+                splitSelect.value = 'train';
+            } else if (config.splits.length > 0) {
+                splitSelect.value = config.splits[0];
+            }
+            
+            // Populate columns dropdown
+            const columnSelect = document.getElementById('hf-column');
+            columnSelect.innerHTML = '<option value="">Select a column...</option>';
+            
+            config.columns.forEach(column => {
+                const option = document.createElement('option');
+                option.value = column;
+                option.textContent = column;
+                columnSelect.appendChild(option);
+            });
+            
+            // Set default column to 'text' if available
+            if (config.columns.includes('text')) {
+                columnSelect.value = 'text';
+            } else if (config.columns.length > 0) {
+                columnSelect.value = config.columns[0];
+            }
+        }
+        
+
+
         // Form submissions
         document.getElementById('upload-form').addEventListener('submit', async function(e) {
             e.preventDefault();
@@ -594,6 +731,12 @@
         document.getElementById('huggingface-form').addEventListener('submit', async function(e) {
             e.preventDefault();
             
+            // Validate that dataset info has been loaded
+            if (!datasetMetadata) {
+                showAlert('Please load dataset information first', 'warning');
+                return;
+            }
+            
             const data = {
                 name: document.getElementById('hf-name').value,
                 dataset_name: document.getElementById('hf-dataset').value,
@@ -607,14 +750,25 @@
                 data.config_name = configName;
             }
             
+            // Validate required fields
+            if (!data.name || !data.split || !data.text_column) {
+                showAlert('Please fill in all required fields', 'warning');
+                return;
+            }
+            
             try {
                 await axios.post('/corpus/huggingface', data);
                 bootstrap.Modal.getInstance(document.getElementById('corpusModal')).hide();
                 loadCorpora();
                 loadDashboard();
                 showAlert('HuggingFace dataset loaded successfully!', 'success');
+                
+                // Reset form
+                document.getElementById('dataset-info').style.display = 'none';
+                document.getElementById('hf-dataset').value = '';
+                datasetMetadata = null;
             } catch (error) {
-                showAlert('Error loading dataset: ' + error.response.data.detail, 'danger');
+                showAlert('Error loading dataset: ' + (error.response?.data?.detail || error.message), 'danger');
             }
         });
 

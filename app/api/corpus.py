@@ -3,12 +3,101 @@ from sqlalchemy.orm import Session
 from typing import List, Optional, cast
 import aiofiles
 import os
-from datasets import load_dataset, Dataset, DatasetDict, IterableDataset, IterableDatasetDict
+from datasets import load_dataset, Dataset, DatasetDict, IterableDataset, IterableDatasetDict, get_dataset_config_names, get_dataset_split_names, get_dataset_infos
 from app.database import get_db, Corpus
 from app.models.schemas import CorpusCreate, Corpus as CorpusSchema, HuggingFaceCorpusRequest
 from app.config import settings
+from app.typing_helpers.vector_store_protocols import DatasetItem
 
 router = APIRouter(prefix="/corpus", tags=["corpus"])
+
+
+@router.get("/huggingface/metadata")
+async def get_huggingface_dataset_metadata(dataset_name: str):
+    """Get metadata for a HuggingFace dataset including available configs, splits, and columns"""
+    print(f"DEBUG: Received request for dataset metadata: {dataset_name}")
+    try:
+        # Get available configs
+        config_names = get_dataset_config_names(dataset_name)
+        
+        # If no configs (single config dataset), use None
+        if not config_names:
+            config_names = [None]
+        
+        metadata = {
+            "dataset_name": dataset_name,
+            "configs": [],
+            "default_config": config_names[0] if config_names else None
+        }
+        
+        # Get dataset infos for metadata
+        try:
+            dataset_infos = get_dataset_infos(dataset_name)
+        except Exception as e:
+            print(f"Warning: Could not get dataset infos: {e}")
+            dataset_infos = {}
+        
+        for config_name in config_names:
+            config_data = {"name": config_name, "splits": [], "columns": []}
+            
+            try:
+                # Get splits for this config
+                if config_name:
+                    split_names = get_dataset_split_names(dataset_name, config_name)
+                else:
+                    split_names = get_dataset_split_names(dataset_name)
+                
+                config_data["splits"] = split_names
+                
+                # Get columns from dataset info if available
+                if dataset_infos and config_name in dataset_infos:
+                    info = dataset_infos[config_name]
+                    if hasattr(info, 'features') and info.features:
+                        config_data["columns"] = list(info.features.keys())
+                elif dataset_infos and len(dataset_infos) == 1:
+                    # Single config dataset
+                    info = list(dataset_infos.values())[0]
+                    if hasattr(info, 'features') and info.features:
+                        config_data["columns"] = list(info.features.keys())
+                else:
+                    # Fallback: try to get columns from first split (but don't download full dataset)
+                    try:
+                        if config_name:
+                            # Load just the first sample to get column names
+                            dataset = load_dataset(dataset_name, config_name, split=split_names[0] if split_names else "train", streaming=True)
+                            # Get first item to see structure
+                            first_item = cast(DatasetItem, next(iter(dataset)))
+                            if hasattr(first_item, 'keys'):
+                                config_data["columns"] = list(first_item.keys())
+                            else:
+                                # For streaming datasets, try to get features safely
+                                features = getattr(dataset, 'features', None)
+                                config_data["columns"] = list(features.keys()) if features else ["text"]
+                        else:
+                            dataset = load_dataset(dataset_name, split=split_names[0] if split_names else "train", streaming=True)
+                            first_item = cast(DatasetItem, next(iter(dataset)))
+                            if hasattr(first_item, 'keys'):
+                                config_data["columns"] = list(first_item.keys())
+                            else:
+                                # For streaming datasets, try to get features safely
+                                features = getattr(dataset, 'features', None)
+                                config_data["columns"] = list(features.keys()) if features else ["text"]
+                    except Exception as e:
+                        print(f"Could not get columns for config {config_name}: {e}")
+                        # Set default columns
+                        config_data["columns"] = ["text"]
+                    
+            except Exception as e:
+                # If we can't get info for this config, skip it
+                print(f"Error getting metadata for config {config_name}: {e}")
+                continue
+            
+            metadata["configs"].append(config_data)
+        
+        return metadata
+        
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error fetching dataset metadata: {str(e)}")
 
 
 @router.post("/", response_model=CorpusSchema)
