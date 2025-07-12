@@ -363,7 +363,12 @@
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Dataset Name</label>
-                                    <input type="text" class="form-control" id="hf-dataset" placeholder="e.g., squad" required>
+                                    <input type="text" class="form-control" id="hf-dataset" placeholder="e.g., EleutherAI/wikitext_document_level" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Config Name (Optional)</label>
+                                    <input type="text" class="form-control" id="hf-config" placeholder="e.g., wikitext-103-raw-v1">
+                                    <small class="form-text text-muted">Required for datasets with multiple configs like EleutherAI/wikitext_document_level</small>
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Split</label>
@@ -596,6 +601,12 @@
                 text_column: document.getElementById('hf-column').value
             };
             
+            // Add config_name if provided
+            const configName = document.getElementById('hf-config').value.trim();
+            if (configName) {
+                data.config_name = configName;
+            }
+            
             try {
                 await axios.post('/corpus/huggingface', data);
                 bootstrap.Modal.getInstance(document.getElementById('corpusModal')).hide();
@@ -712,15 +723,23 @@
 
         // Utility functions
         function showAlert(message, type) {
+            // If message is an object, try to extract a useful string
+            if (typeof message === 'object') {
+                if (Array.isArray(message)) {
+                    message = message.map(m => typeof m === 'object' ? JSON.stringify(m) : m).join('<br>');
+                } else if (message.detail) {
+                    message = message.detail;
+                } else {
+                    message = JSON.stringify(message);
+                }
+            }
             const alertDiv = document.createElement('div');
             alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
             alertDiv.innerHTML = `
                 ${message}
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             `;
-            
             document.querySelector('.main-content').insertBefore(alertDiv, document.querySelector('.main-content').firstChild);
-            
             setTimeout(() => {
                 alertDiv.remove();
             }, 5000);

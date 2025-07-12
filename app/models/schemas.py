@@ -139,4 +139,13 @@ class EvaluationResponse(BaseModel):
     evaluation_run_id: int
     status: str
     message: str
-    results: Optional[List[EvaluationResult]] = None 
+    results: Optional[List[EvaluationResult]] = None
+
+
+class HuggingFaceCorpusRequest(BaseModel):
+    name: str = Field(..., description="Name of the corpus")
+    dataset_name: str = Field(..., description="HuggingFace dataset name")
+    split: str = Field("train", description="Dataset split to use")
+    text_column: str = Field("text", description="Column name containing the text data")
+    config_name: Optional[str] = Field(None, description="Dataset configuration name")
+    description: Optional[str] = Field(None, description="Description of the corpus") 
