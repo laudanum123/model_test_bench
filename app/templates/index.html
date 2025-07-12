@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Model Test Bench</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .sidebar {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .main-content {
+            background-color: #f8f9fa;
+        }
+        .card {
+            border: none;
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+            border-radius: 0.5rem;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+        }
+        .nav-link {
+            color: rgba(255, 255, 255, 0.8);
+            border-radius: 0.5rem;
+            margin: 0.25rem 0;
+        }
+        .nav-link:hover, .nav-link.active {
+            color: white;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        .status-badge {
+            font-size: 0.75rem;
+        }
+        .loading {
+            display: none;
+        }
+        .loading.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-3 col-lg-2 sidebar p-3">
+                <div class="text-center mb-4">
+                    <h4 class="text-white">
+                        <i class="fas fa-robot me-2"></i>
+                        Model Test Bench
+                    </h4>
+                </div>
+                
+                <nav class="nav flex-column">
+                    <a class="nav-link active" href="#" onclick="showSection('dashboard')">
+                        <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+                    </a>
+                    <a class="nav-link" href="#" onclick="showSection('corpus')">
+                        <i class="fas fa-book me-2"></i>Corpora
+                    </a>
+                    <a class="nav-link" href="#" onclick="showSection('questions')">
+                        <i class="fas fa-question-circle me-2"></i>Questions
+                    </a>
+                    <a class="nav-link" href="#" onclick="showSection('evaluation')">
+                        <i class="fas fa-chart-line me-2"></i>Evaluations
+                    </a>
+                    <a class="nav-link" href="#" onclick="showSection('new-evaluation')">
+                        <i class="fas fa-plus me-2"></i>New Evaluation
+                    </a>
+                </nav>
+            </div>
+
+            <!-- Main Content -->
+            <div class="col-md-9 col-lg-10 main-content p-4">
+                <!-- Dashboard Section -->
+                <div id="dashboard-section" class="content-section">
+                    <div class="row">
+                        <div class="col-12">
+                            <h2 class="mb-4">
+                                <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+                            </h2>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <div class="card text-center">
+                                <div class="card-body">
+                                    <i class="fas fa-book fa-2x text-primary mb-2"></i>
+                                    <h5 class="card-title" id="corpus-count">0</h5>
+                                    <p class="card-text">Corpora</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="card text-center">
+                                <div class="card-body">
+                                    <i class="fas fa-question-circle fa-2x text-success mb-2"></i>
+                                    <h5 class="card-title" id="question-count">0</h5>
+                                    <p class="card-text">Questions</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="card text-center">
+                                <div class="card-body">
+                                    <i class="fas fa-chart-line fa-2x text-warning mb-2"></i>
+                                    <h5 class="card-title" id="evaluation-count">0</h5>
+                                    <p class="card-text">Evaluations</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="card text-center">
+                                <div class="card-body">
+                                    <i class="fas fa-running fa-2x text-info mb-2"></i>
+                                    <h5 class="card-title" id="running-count">0</h5>
+                                    <p class="card-text">Running</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5>Recent Evaluations</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div id="recent-evaluations">
+                                        <p class="text-muted">No evaluations yet.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Corpus Section -->
+                <div id="corpus-section" class="content-section" style="display: none;">
+                    <div class="row">
+                        <div class="col-12">
+                            <h2 class="mb-4">
+                                <i class="fas fa-book me-2"></i>Corpora
+                            </h2>
+                            <button class="btn btn-primary mb-3" onclick="showCorpusModal()">
+                                <i class="fas fa-plus me-2"></i>Add Corpus
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-body">
+                                    <div id="corpora-list">
+                                        <div class="loading">
+                                            <div class="spinner-border text-primary" role="status">
+                                                <span class="visually-hidden">Loading...</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Questions Section -->
+                <div id="questions-section" class="content-section" style="display: none;">
+                    <div class="row">
+                        <div class="col-12">
+                            <h2 class="mb-4">
+                                <i class="fas fa-question-circle me-2"></i>Questions
+                            </h2>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-body">
+                                    <div id="questions-list">
+                                        <p class="text-muted">Select a corpus to view questions.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Evaluations Section -->
+                <div id="evaluation-section" class="content-section" style="display: none;">
+                    <div class="row">
+                        <div class="col-12">
+                            <h2 class="mb-4">
+                                <i class="fas fa-chart-line me-2"></i>Evaluations
+                            </h2>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-body">
+                                    <div id="evaluations-list">
+                                        <div class="loading">
+                                            <div class="spinner-border text-primary" role="status">
+                                                <span class="visually-hidden">Loading...</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- New Evaluation Section -->
+                <div id="new-evaluation-section" class="content-section" style="display: none;">
+                    <div class="row">
+                        <div class="col-12">
+                            <h2 class="mb-4">
+                                <i class="fas fa-plus me-2"></i>New Evaluation
+                            </h2>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-body">
+                                    <form id="evaluation-form">
+                                        <div class="row">
+                                            <div class="col-md-6 mb-3">
+                                                <label class="form-label">Evaluation Name</label>
+                                                <input type="text" class="form-control" id="evaluation-name" required>
+                                            </div>
+                                            <div class="col-md-6 mb-3">
+                                                <label class="form-label">Corpus</label>
+                                                <select class="form-select" id="evaluation-corpus" required>
+                                                    <option value="">Select a corpus...</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="row">
+                                            <div class="col-md-6 mb-3">
+                                                <label class="form-label">LLM Provider</label>
+                                                <select class="form-select" id="llm-provider" onchange="updateLLMModels()">
+                                                    <option value="openai">OpenAI</option>
+                                                    <option value="transformers">Transformers</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-6 mb-3">
+                                                <label class="form-label">LLM Model</label>
+                                                <select class="form-select" id="llm-model" required>
+                                                    <option value="">Select model...</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="row">
+                                            <div class="col-md-6 mb-3">
+                                                <label class="form-label">Embedding Provider</label>
+                                                <select class="form-select" id="embedding-provider" onchange="updateEmbeddingModels()">
+                                                    <option value="openai">OpenAI</option>
+                                                    <option value="sentence_transformers">Sentence Transformers</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-6 mb-3">
+                                                <label class="form-label">Embedding Model</label>
+                                                <select class="form-select" id="embedding-model" required>
+                                                    <option value="">Select model...</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="row">
+                                            <div class="col-md-4 mb-3">
+                                                <label class="form-label">Vector Store</label>
+                                                <select class="form-select" id="vector-store" required>
+                                                    <option value="chroma">ChromaDB</option>
+                                                    <option value="faiss">FAISS</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-4 mb-3">
+                                                <label class="form-label">Retrieval Strategy</label>
+                                                <select class="form-select" id="retrieval-strategy" required>
+                                                    <option value="semantic">Semantic</option>
+                                                    <option value="hybrid">Hybrid</option>
+                                                    <option value="bm25">BM25</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-4 mb-3">
+                                                <label class="form-label">Reranker Model (Optional)</label>
+                                                <select class="form-select" id="reranker-model">
+                                                    <option value="">None</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="fas fa-play me-2"></i>Start Evaluation
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Corpus Modal -->
+    <div class="modal fade" id="corpusModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Corpus</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <ul class="nav nav-tabs" id="corpusTabs">
+                        <li class="nav-item">
+                            <a class="nav-link active" data-bs-toggle="tab" href="#upload-tab">Upload File</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="tab" href="#huggingface-tab">HuggingFace Dataset</a>
+                        </li>
+                    </ul>
+                    
+                    <div class="tab-content mt-3">
+                        <div class="tab-pane fade show active" id="upload-tab">
+                            <form id="upload-form">
+                                <div class="mb-3">
+                                    <label class="form-label">Corpus Name</label>
+                                    <input type="text" class="form-control" id="upload-name" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Description</label>
+                                    <textarea class="form-control" id="upload-description" rows="3"></textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">File</label>
+                                    <input type="file" class="form-control" id="upload-file" accept=".txt,.md,.csv" required>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Upload</button>
+                            </form>
+                        </div>
+                        
+                        <div class="tab-pane fade" id="huggingface-tab">
+                            <form id="huggingface-form">
+                                <div class="mb-3">
+                                    <label class="form-label">Corpus Name</label>
+                                    <input type="text" class="form-control" id="hf-name" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Dataset Name</label>
+                                    <input type="text" class="form-control" id="hf-dataset" placeholder="e.g., squad" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Split</label>
+                                    <input type="text" class="form-control" id="hf-split" value="train">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Text Column</label>
+                                    <input type="text" class="form-control" id="hf-column" value="text">
+                                </div>
+                                <button type="submit" class="btn btn-primary">Load Dataset</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>
+        // Global variables
+        let availableModels = {};
+        let currentSection = 'dashboard';
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            loadAvailableModels();
+            loadDashboard();
+            loadCorpora();
+            loadEvaluations();
+        });
+
+        // Navigation
+        function showSection(section) {
+            // Hide all sections
+            document.querySelectorAll('.content-section').forEach(el => el.style.display = 'none');
+            
+            // Show selected section
+            document.getElementById(section + '-section').style.display = 'block';
+            
+            // Update navigation
+            document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            currentSection = section;
+            
+            // Load section-specific data
+            if (section === 'corpus') {
+                loadCorpora();
+            } else if (section === 'evaluation') {
+                loadEvaluations();
+            } else if (section === 'new-evaluation') {
+                loadCorporaForEvaluation();
+            }
+        }
+
+        // Load available models
+        async function loadAvailableModels() {
+            try {
+                const response = await axios.get('/api/models');
+                availableModels = response.data;
+                updateLLMModels();
+                updateEmbeddingModels();
+            } catch (error) {
+                console.error('Error loading models:', error);
+            }
+        }
+
+        // Update model dropdowns
+        function updateLLMModels() {
+            const provider = document.getElementById('llm-provider').value;
+            const modelSelect = document.getElementById('llm-model');
+            modelSelect.innerHTML = '<option value="">Select model...</option>';
+            
+            if (availableModels.llm_providers && availableModels.llm_providers[provider]) {
+                availableModels.llm_providers[provider].forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model;
+                    option.textContent = model;
+                    modelSelect.appendChild(option);
+                });
+            }
+        }
+
+        function updateEmbeddingModels() {
+            const provider = document.getElementById('embedding-provider').value;
+            const modelSelect = document.getElementById('embedding-model');
+            modelSelect.innerHTML = '<option value="">Select model...</option>';
+            
+            if (availableModels.embedding_providers && availableModels.embedding_providers[provider]) {
+                availableModels.embedding_providers[provider].forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model;
+                    option.textContent = model;
+                    modelSelect.appendChild(option);
+                });
+            }
+        }
+
+        // Dashboard functions
+        async function loadDashboard() {
+            try {
+                const [corpora, evaluations] = await Promise.all([
+                    axios.get('/corpus/'),
+                    axios.get('/evaluation/')
+                ]);
+                
+                document.getElementById('corpus-count').textContent = corpora.data.length;
+                document.getElementById('evaluation-count').textContent = evaluations.data.length;
+                
+                const runningEvaluations = evaluations.data.filter(e => e.status === 'running');
+                document.getElementById('running-count').textContent = runningEvaluations.length;
+                
+                // Load recent evaluations
+                const recentEvaluations = evaluations.data.slice(0, 5);
+                displayRecentEvaluations(recentEvaluations);
+                
+            } catch (error) {
+                console.error('Error loading dashboard:', error);
+            }
+        }
+
+        function displayRecentEvaluations(evaluations) {
+            const container = document.getElementById('recent-evaluations');
+            
+            if (evaluations.length === 0) {
+                container.innerHTML = '<p class="text-muted">No evaluations yet.</p>';
+                return;
+            }
+            
+            const html = evaluations.map(eval => `
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div>
+                        <strong>${eval.name}</strong>
+                        <br>
+                        <small class="text-muted">${eval.description || 'No description'}</small>
+                    </div>
+                    <span class="badge bg-${getStatusColor(eval.status)} status-badge">${eval.status}</span>
+                </div>
+            `).join('');
+            
+            container.innerHTML = html;
+        }
+
+        function getStatusColor(status) {
+            switch (status) {
+                case 'completed': return 'success';
+                case 'running': return 'warning';
+                case 'failed': return 'danger';
+                default: return 'secondary';
+            }
+        }
+
+        // Corpus functions
+        async function loadCorpora() {
+            try {
+                const response = await axios.get('/corpus/');
+                displayCorpora(response.data);
+            } catch (error) {
+                console.error('Error loading corpora:', error);
+            }
+        }
+
+        function displayCorpora(corpora) {
+            const container = document.getElementById('corpora-list');
+            
+            if (corpora.length === 0) {
+                container.innerHTML = '<p class="text-muted">No corpora found. Create your first corpus!</p>';
+                return;
+            }
+            
+            const html = corpora.map(corpus => `
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h5 class="card-title">${corpus.name}</h5>
+                                <p class="card-text">${corpus.description || 'No description'}</p>
+                                <small class="text-muted">Source: ${corpus.source}</small>
+                            </div>
+                            <div>
+                                <button class="btn btn-sm btn-outline-primary me-2" onclick="viewCorpus(${corpus.id})">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="deleteCorpus(${corpus.id})">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            
+            container.innerHTML = html;
+        }
+
+        function showCorpusModal() {
+            const modal = new bootstrap.Modal(document.getElementById('corpusModal'));
+            modal.show();
+        }
+
+        // Form submissions
+        document.getElementById('upload-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData();
+            formData.append('name', document.getElementById('upload-name').value);
+            formData.append('description', document.getElementById('upload-description').value);
+            formData.append('file', document.getElementById('upload-file').files[0]);
+            
+            try {
+                await axios.post('/corpus/upload', formData);
+                bootstrap.Modal.getInstance(document.getElementById('corpusModal')).hide();
+                loadCorpora();
+                loadDashboard();
+                showAlert('Corpus uploaded successfully!', 'success');
+            } catch (error) {
+                showAlert('Error uploading corpus: ' + error.response.data.detail, 'danger');
+            }
+        });
+
+        document.getElementById('huggingface-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const data = {
+                name: document.getElementById('hf-name').value,
+                dataset_name: document.getElementById('hf-dataset').value,
+                split: document.getElementById('hf-split').value,
+                text_column: document.getElementById('hf-column').value
+            };
+            
+            try {
+                await axios.post('/corpus/huggingface', data);
+                bootstrap.Modal.getInstance(document.getElementById('corpusModal')).hide();
+                loadCorpora();
+                loadDashboard();
+                showAlert('HuggingFace dataset loaded successfully!', 'success');
+            } catch (error) {
+                showAlert('Error loading dataset: ' + error.response.data.detail, 'danger');
+            }
+        });
+
+        // Evaluation functions
+        async function loadEvaluations() {
+            try {
+                const response = await axios.get('/evaluation/');
+                displayEvaluations(response.data);
+            } catch (error) {
+                console.error('Error loading evaluations:', error);
+            }
+        }
+
+        function displayEvaluations(evaluations) {
+            const container = document.getElementById('evaluations-list');
+            
+            if (evaluations.length === 0) {
+                container.innerHTML = '<p class="text-muted">No evaluations found.</p>';
+                return;
+            }
+            
+            const html = evaluations.map(eval => `
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h5 class="card-title">${eval.name}</h5>
+                                <p class="card-text">${eval.description || 'No description'}</p>
+                                <small class="text-muted">
+                                    LLM: ${eval.llm_model} | Embedding: ${eval.embedding_model} | 
+                                    Strategy: ${eval.retrieval_strategy}
+                                </small>
+                            </div>
+                            <div class="text-end">
+                                <span class="badge bg-${getStatusColor(eval.status)} status-badge mb-2">${eval.status}</span>
+                                <br>
+                                ${eval.status === 'completed' ? `
+                                    <small class="text-muted">
+                                        Accuracy: ${(eval.accuracy * 100).toFixed(1)}%<br>
+                                        Questions: ${eval.total_questions}
+                                    </small>
+                                ` : ''}
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <button class="btn btn-sm btn-primary me-2" onclick="viewEvaluation(${eval.id})">
+                                <i class="fas fa-eye me-1"></i>View Results
+                            </button>
+                            ${eval.status !== 'running' ? `
+                                <button class="btn btn-sm btn-success" onclick="runEvaluation(${eval.id})">
+                                    <i class="fas fa-play me-1"></i>Run
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            
+            container.innerHTML = html;
+        }
+
+        // New evaluation form
+        document.getElementById('evaluation-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const data = {
+                name: document.getElementById('evaluation-name').value,
+                description: '',
+                corpus_id: parseInt(document.getElementById('evaluation-corpus').value),
+                stack_config: {
+                    llm_provider: document.getElementById('llm-provider').value,
+                    llm_model: document.getElementById('llm-model').value,
+                    embedding_provider: document.getElementById('embedding-provider').value,
+                    embedding_model: document.getElementById('embedding-model').value,
+                    vector_store: document.getElementById('vector-store').value,
+                    retrieval_strategy: document.getElementById('retrieval-strategy').value,
+                    reranker_model: document.getElementById('reranker-model').value || null
+                }
+            };
+            
+            try {
+                const response = await axios.post('/evaluation/', data);
+                showAlert('Evaluation created successfully!', 'success');
+                showSection('evaluation');
+            } catch (error) {
+                showAlert('Error creating evaluation: ' + error.response.data.detail, 'danger');
+            }
+        });
+
+        async function loadCorporaForEvaluation() {
+            try {
+                const response = await axios.get('/corpus/');
+                const select = document.getElementById('evaluation-corpus');
+                select.innerHTML = '<option value="">Select a corpus...</option>';
+                
+                response.data.forEach(corpus => {
+                    const option = document.createElement('option');
+                    option.value = corpus.id;
+                    option.textContent = corpus.name;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading corpora for evaluation:', error);
+            }
+        }
+
+        // Utility functions
+        function showAlert(message, type) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            
+            document.querySelector('.main-content').insertBefore(alertDiv, document.querySelector('.main-content').firstChild);
+            
+            setTimeout(() => {
+                alertDiv.remove();
+            }, 5000);
+        }
+
+        // Placeholder functions for future implementation
+        function viewCorpus(id) {
+            showAlert('View corpus functionality coming soon!', 'info');
+        }
+
+        function deleteCorpus(id) {
+            if (confirm('Are you sure you want to delete this corpus?')) {
+                axios.delete(`/corpus/${id}`)
+                    .then(() => {
+                        loadCorpora();
+                        loadDashboard();
+                        showAlert('Corpus deleted successfully!', 'success');
+                    })
+                    .catch(error => {
+                        showAlert('Error deleting corpus: ' + error.response.data.detail, 'danger');
+                    });
+            }
+        }
+
+        function viewEvaluation(id) {
+            showAlert('View evaluation results functionality coming soon!', 'info');
+        }
+
+        function runEvaluation(id) {
+            axios.post(`/evaluation/${id}/run`)
+                .then(() => {
+                    showAlert('Evaluation started!', 'success');
+                    loadEvaluations();
+                })
+                .catch(error => {
+                    showAlert('Error starting evaluation: ' + error.response.data.detail, 'danger');
+                });
+        }
+    </script>
+</body>
+</html> 
