@@ -1,11 +1,13 @@
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, cast
 import numpy as np
 from rank_bm25 import BM25Okapi
 from app.services.embedding_service import EmbeddingServiceFactory, EmbeddingProvider
 from app.services.vector_store_service import VectorStoreServiceFactory
 from app.services.reranker_service import RerankerServiceFactory
 from app.models.schemas import RetrievalStrategy, VectorStore
+from typing_helpers.vector_store_protocols import SupportsUpdateEmbeddings
+
 
 
 class RetrievalService(ABC):
@@ -35,23 +37,31 @@ class SemanticRetrievalService(RetrievalService):
     
     async def add_documents(self, documents: List[str], metadata: Optional[List[Dict[str, Any]]] = None):
         """Add documents to the vector store"""
-        # Generate embeddings for documents
-        embeddings = await self.embedding_service.embed(documents)
-        
-        # Add to vector store
+        # Add to vector store first
         await self.vector_store.add_documents(documents, metadata)
         
-        # If using FAISS, update the index with embeddings
-        if hasattr(self.vector_store, 'update_embeddings'):
-            self.vector_store.update_embeddings(embeddings)
+        # Only generate and update embeddings for FAISS (ChromaDB handles embeddings internally)
+        if isinstance(self.vector_store, SupportsUpdateEmbeddings):
+            # Generate embeddings for documents
+            embeddings = await self.embedding_service.embed(documents)
+            
+            # Ensure embeddings is List[List[float]] for multiple documents
+            if isinstance(embeddings[0], list):
+                await self.vector_store.update_embeddings(cast(List[List[float]], embeddings))
+            else:
+                await self.vector_store.update_embeddings(cast(List[List[float]], [embeddings]))
     
     async def retrieve(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
         """Retrieve documents using semantic search"""
         # Generate query embedding
         query_embedding = await self.embedding_service.embed(query)
         
+        # Ensure query_embedding is List[float] for single query
+        if isinstance(query_embedding[0], list):
+            query_embedding = cast(List[float], query_embedding[0])
+        
         # Search vector store
-        results = await self.vector_store.search(query_embedding, top_k)
+        results = await self.vector_store.search(cast(List[float], query_embedding), top_k)
         
         # Apply reranker if available
         if self.reranker and results:

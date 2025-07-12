@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Union
+from typing import List, Union, cast
 import openai
 import numpy as np
 from sentence_transformers import SentenceTransformer
@@ -36,7 +36,7 @@ class OpenAIEmbeddingService(EmbeddingService):
             if isinstance(texts, str):
                 texts = [texts]
             
-            response = await openai.Embedding.acreate(
+            response = openai.embeddings.create(
                 input=texts,
                 model=self.model
             )
@@ -53,13 +53,13 @@ class OpenAIEmbeddingService(EmbeddingService):
         else:
             emb1, emb2 = embeddings[0], embeddings[1]
         
-        return self._cosine_similarity(emb1, emb2)
+        return self._cosine_similarity(cast(List[float], emb1), cast(List[float], emb2))
     
     def _cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
         """Calculate cosine similarity between two vectors"""
-        vec1 = np.array(vec1)
-        vec2 = np.array(vec2)
-        return np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
+        vec1_array = np.array(vec1)
+        vec2_array = np.array(vec2)
+        return np.dot(vec1_array, vec2_array) / (np.linalg.norm(vec1_array) * np.linalg.norm(vec2_array))
 
 
 class SentenceTransformersService(EmbeddingService):
@@ -82,7 +82,8 @@ class SentenceTransformersService(EmbeddingService):
             if isinstance(texts, str):
                 texts = [texts]
             
-            embeddings = self.model.encode(texts, convert_to_tensor=False)
+            if self.model:
+                embeddings = self.model.encode(texts, convert_to_tensor=False)
             
             if len(texts) == 1:
                 return embeddings[0].tolist()
@@ -98,13 +99,13 @@ class SentenceTransformersService(EmbeddingService):
         else:
             emb1, emb2 = embeddings[0], embeddings[1]
         
-        return self._cosine_similarity(emb1, emb2)
+        return self._cosine_similarity(cast(List[float], emb1), cast(List[float], emb2))
     
     def _cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
         """Calculate cosine similarity between two vectors"""
-        vec1 = np.array(vec1)
-        vec2 = np.array(vec2)
-        return np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
+        vec1_array = np.array(vec1)
+        vec2_array = np.array(vec2)
+        return np.dot(vec1_array, vec2_array) / (np.linalg.norm(vec1_array) * np.linalg.norm(vec2_array))
 
 
 class EmbeddingServiceFactory:

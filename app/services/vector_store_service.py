@@ -1,10 +1,9 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
 import chromadb
+from chromadb.api.models.Collection import Metadata
 import faiss
 import numpy as np
-import pickle
-import os
 from app.config import settings
 
 
@@ -20,6 +19,7 @@ class VectorStoreService(ABC):
     async def search(self, query_embedding: List[float], top_k: int = 5) -> List[Dict[str, Any]]:
         """Search for similar documents"""
         pass
+
     
     @abstractmethod
     async def clear(self):
@@ -51,13 +51,25 @@ class ChromaService(VectorStoreService):
             if metadata is None:
                 metadata = [{"source": "upload"} for _ in documents]
             
+            # Convert metadata to ChromaDB Metadata type
+            chroma_metadata: List[Metadata] = []
+            for meta in metadata:
+                chroma_meta: Metadata = {}
+                for key, value in meta.items():
+                    if isinstance(value, (str, int, float, bool)) or value is None:
+                        chroma_meta[key] = value
+                chroma_metadata.append(chroma_meta)
+            
             # Generate IDs for documents
             ids = [f"doc_{i}" for i in range(len(documents))]
+            
+            if self.collection is None:
+                raise Exception("Failed to initialize ChromaDB collection")
             
             # Add documents to collection
             self.collection.add(
                 documents=documents,
-                metadatas=metadata,
+                metadatas=chroma_metadata,
                 ids=ids
             )
             
@@ -66,24 +78,29 @@ class ChromaService(VectorStoreService):
             raise Exception(f"ChromaDB add documents error: {str(e)}")
     
     async def search(self, query_embedding: List[float], top_k: int = 5) -> List[Dict[str, Any]]:
+        """Search for similar documents"""	
         try:
             # Convert embedding to list format expected by ChromaDB
-            query_embedding_list = [query_embedding]
+            query_embedding_array = np.array([query_embedding], dtype=np.float32)
+            
+            if self.collection is None:
+                raise Exception("Failed to initialize ChromaDB collection")
             
             results = self.collection.query(
-                query_embeddings=query_embedding_list,
+                query_embeddings=query_embedding_array,
                 n_results=top_k
             )
             
             # Format results
             formatted_results = []
-            for i in range(len(results['documents'][0])):
-                formatted_results.append({
-                    'text': results['documents'][0][i],
-                    'metadata': results['metadatas'][0][i],
-                    'distance': results['distances'][0][i],
-                    'id': results['ids'][0][i]
-                })
+            if results and 'documents' and 'metadatas' and 'distances' and 'ids' in results and results['documents'] and results['metadatas'] and results['distances'] and results['ids']:
+                for i in range(len(results['documents'][0])):
+                    formatted_results.append({
+                        'text': results['documents'][0][i],
+                        'metadata': results['metadatas'][0][i], 
+                        'distance': results['distances'][0][i],
+                        'id': results['ids'][0][i]
+                    })
             
             return formatted_results
         except Exception as e:
@@ -135,14 +152,23 @@ class FAISSService(VectorStoreService):
     
     async def search(self, query_embedding: List[float], top_k: int = 5) -> List[Dict[str, Any]]:
         try:
-            if not self.documents:
+            if not self.documents or self.index is None:
                 return []
             
             # Convert query embedding to numpy array
             query_vector = np.array([query_embedding], dtype=np.float32)
             
+            # Normalize query vector for cosine similarity
+            if isinstance(self.index, faiss.IndexFlatIP):
+                faiss.normalize_L2(query_vector)
+
             # Search
-            distances, indices = self.index.search(query_vector, min(top_k, len(self.documents)))
+            k = min(top_k, len(self.documents))
+            if self.index is not None:
+            
+                distances, indices = self.index.search(x=query_vector, k=k) # type: ignore[call-arg]
+            else:
+                return []
             
             # Format results
             results = []
@@ -167,12 +193,18 @@ class FAISSService(VectorStoreService):
         except Exception as e:
             raise Exception(f"FAISS clear error: {str(e)}")
     
-    def update_embeddings(self, embeddings: List[List[float]]):
+    async def update_embeddings(self, embeddings: List[List[float]]):
         """Update the FAISS index with new embeddings"""
         try:
-            if embeddings:
+            if embeddings and self.index is not None:
                 embeddings_array = np.array(embeddings, dtype=np.float32)
-                self.index.add(embeddings_array)
+                
+                # Normalize embeddings for cosine similarity
+                if isinstance(self.index, faiss.IndexFlatIP):
+                    faiss.normalize_L2(embeddings_array)
+                
+                n = embeddings_array.shape[0]
+                self.index.add(x=embeddings_array, n=n)
         except Exception as e:
             raise Exception(f"FAISS update embeddings error: {str(e)}")
 
