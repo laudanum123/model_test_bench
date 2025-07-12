@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Model Test Bench{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2 class="mb-4">
+            <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+        </h2>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-3 mb-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-book fa-2x text-primary mb-2"></i>
+                <h5 class="card-title" id="corpus-count">0</h5>
+                <p class="card-text">Corpora</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-question-circle fa-2x text-success mb-2"></i>
+                <h5 class="card-title" id="question-count">0</h5>
+                <p class="card-text">Questions</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-chart-line fa-2x text-warning mb-2"></i>
+                <h5 class="card-title" id="evaluation-count">0</h5>
+                <p class="card-text">Evaluations</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-running fa-2x text-info mb-2"></i>
+                <h5 class="card-title" id="running-count">0</h5>
+                <p class="card-text">Running</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Recent Evaluations</h5>
+            </div>
+            <div class="card-body">
+                <div id="recent-evaluations">
+                    <p class="text-muted">No evaluations yet.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Dashboard-specific JavaScript
+    async function loadDashboard() {
+        try {
+            const [corpora, evaluations] = await Promise.all([
+                axios.get('/corpus/'),
+                axios.get('/evaluation/')
+            ]);
+            
+            document.getElementById('corpus-count').textContent = corpora.data.length;
+            document.getElementById('evaluation-count').textContent = evaluations.data.length;
+            
+            const runningEvaluations = evaluations.data.filter(e => e.status === 'running');
+            document.getElementById('running-count').textContent = runningEvaluations.length;
+            
+            // Load recent evaluations
+            const recentEvaluations = evaluations.data.slice(0, 5);
+            displayRecentEvaluations(recentEvaluations);
+            
+        } catch (error) {
+            console.error('Error loading dashboard:', error);
+        }
+    }
+
+    function displayRecentEvaluations(evaluations) {
+        const container = document.getElementById('recent-evaluations');
+        
+        if (evaluations.length === 0) {
+            container.innerHTML = '<p class="text-muted">No evaluations yet.</p>';
+            return;
+        }
+        
+        const html = evaluations.map(eval => `
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <div>
+                    <strong>${eval.name}</strong>
+                    <br>
+                    <small class="text-muted">${eval.description || 'No description'}</small>
+                </div>
+                <span class="badge bg-${getStatusColor(eval.status)} status-badge">${eval.status}</span>
+            </div>
+        `).join('');
+        
+        container.innerHTML = html;
+    }
+
+    // Load dashboard data when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        loadDashboard();
+    });
+</script>
+{% endblock %} 

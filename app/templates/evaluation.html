@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}Evaluations - Model Test Bench{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2 class="mb-4">
+            <i class="fas fa-chart-line me-2"></i>Evaluations
+        </h2>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div id="evaluations-list">
+                    <div class="loading">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Evaluation-specific JavaScript
+    async function loadEvaluations() {
+        try {
+            const response = await axios.get('/evaluation/');
+            displayEvaluations(response.data);
+        } catch (error) {
+            console.error('Error loading evaluations:', error);
+        }
+    }
+
+    function displayEvaluations(evaluations) {
+        const container = document.getElementById('evaluations-list');
+        
+        if (evaluations.length === 0) {
+            container.innerHTML = '<p class="text-muted">No evaluations found.</p>';
+            return;
+        }
+        
+        const html = evaluations.map(eval => `
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h5 class="card-title">${eval.name}</h5>
+                            <p class="card-text">${eval.description || 'No description'}</p>
+                            <small class="text-muted">
+                                LLM: ${eval.llm_model} | Embedding: ${eval.embedding_model} | 
+                                Strategy: ${eval.retrieval_strategy}
+                            </small>
+                        </div>
+                        <div class="text-end">
+                            <span class="badge bg-${getStatusColor(eval.status)} status-badge mb-2">${eval.status}</span>
+                            <br>
+                            ${eval.status === 'completed' ? `
+                                <small class="text-muted">
+                                    Accuracy: ${(eval.accuracy * 100).toFixed(1)}%<br>
+                                    Questions: ${eval.total_questions}
+                                </small>
+                            ` : ''}
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <button class="btn btn-sm btn-primary me-2" onclick="viewEvaluation(${eval.id})">
+                            <i class="fas fa-eye me-1"></i>View Results
+                        </button>
+                        ${eval.status !== 'running' ? `
+                            <button class="btn btn-sm btn-success" onclick="runEvaluation(${eval.id})">
+                                <i class="fas fa-play me-1"></i>Run
+                            </button>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        `).join('');
+        
+        container.innerHTML = html;
+    }
+
+    // Placeholder functions for future implementation
+    function viewEvaluation(id) {
+        showAlert('View evaluation results functionality coming soon!', 'info');
+    }
+
+    function runEvaluation(id) {
+        axios.post(`/evaluation/${id}/run`)
+            .then(() => {
+                showAlert('Evaluation started!', 'success');
+                loadEvaluations();
+            })
+            .catch(error => {
+                showAlert('Error starting evaluation: ' + error.response.data.detail, 'danger');
+            });
+    }
+
+    // Load evaluations when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        loadEvaluations();
+    });
+</script>
+{% endblock %} 

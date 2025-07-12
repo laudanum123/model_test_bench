@@ -1,0 +1,372 @@
+{% extends "base.html" %}
+
+{% block title %}Corpora - Model Test Bench{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2 class="mb-4">
+            <i class="fas fa-book me-2"></i>Corpora
+        </h2>
+        <button class="btn btn-primary mb-3" onclick="showCorpusModal()">
+            <i class="fas fa-plus me-2"></i>Add Corpus
+        </button>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div id="corpora-list">
+                    <div class="loading">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+<!-- Corpus Modal -->
+<div class="modal fade" id="corpusModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add Corpus</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <ul class="nav nav-tabs" id="corpusTabs">
+                    <li class="nav-item">
+                        <a class="nav-link active" data-bs-toggle="tab" href="#upload-tab">Upload File</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-bs-toggle="tab" href="#huggingface-tab">HuggingFace Dataset</a>
+                    </li>
+                </ul>
+                
+                <div class="tab-content mt-3">
+                    <div class="tab-pane fade show active" id="upload-tab">
+                        <form id="upload-form">
+                            <div class="mb-3">
+                                <label class="form-label">Corpus Name</label>
+                                <input type="text" class="form-control" id="upload-name" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Description</label>
+                                <textarea class="form-control" id="upload-description" rows="3"></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">File</label>
+                                <input type="file" class="form-control" id="upload-file" accept=".txt,.md,.csv" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Upload</button>
+                        </form>
+                    </div>
+                    
+                    <div class="tab-pane fade" id="huggingface-tab">
+                        <form id="huggingface-form">
+                            <div class="mb-3">
+                                <label class="form-label">Dataset Name</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="hf-dataset" placeholder="e.g., EleutherAI/wikitext_document_level" required>
+                                    <button type="button" class="btn btn-outline-secondary" onclick="loadDatasetMetadata()">
+                                        <i class="fas fa-search"></i> Load Info
+                                    </button>
+                                </div>
+                                <small class="form-text text-muted">Enter a HuggingFace dataset name and click "Load Info" to populate available options</small>
+                            </div>
+                            
+                            <div id="dataset-loading" class="mb-3" style="display: none;">
+                                <div class="d-flex align-items-center">
+                                    <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                    <span>Loading dataset information...</span>
+                                </div>
+                            </div>
+                            
+                            <div id="dataset-info" style="display: none;">
+                                <div class="mb-3">
+                                    <label class="form-label">Corpus Name</label>
+                                    <input type="text" class="form-control" id="hf-name" required>
+                                    <small class="form-text text-muted">This will be auto-filled with the dataset name</small>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Config Name</label>
+                                    <select class="form-select" id="hf-config">
+                                        <option value="">Select a config...</option>
+                                    </select>
+                                    <small class="form-text text-muted">Select the dataset configuration to use</small>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Split</label>
+                                    <select class="form-select" id="hf-split">
+                                        <option value="">Select a split...</option>
+                                    </select>
+                                    <small class="form-text text-muted">Select the dataset split to use</small>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Text Column</label>
+                                    <select class="form-select" id="hf-column">
+                                        <option value="">Select a column...</option>
+                                    </select>
+                                    <small class="form-text text-muted">Select the column containing text data</small>
+                                </div>
+                                
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-download me-2"></i>Load Dataset
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Corpus-specific JavaScript
+    async function loadCorpora() {
+        try {
+            const response = await axios.get('/corpus/');
+            displayCorpora(response.data);
+        } catch (error) {
+            console.error('Error loading corpora:', error);
+        }
+    }
+
+    function displayCorpora(corpora) {
+        const container = document.getElementById('corpora-list');
+        
+        if (corpora.length === 0) {
+            container.innerHTML = '<p class="text-muted">No corpora found. Create your first corpus!</p>';
+            return;
+        }
+        
+        const html = corpora.map(corpus => `
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h5 class="card-title">${corpus.name}</h5>
+                            <p class="card-text">${corpus.description || 'No description'}</p>
+                            <small class="text-muted">Source: ${corpus.source}</small>
+                        </div>
+                        <div>
+                            <button class="btn btn-sm btn-outline-primary me-2" onclick="viewCorpus(${corpus.id})">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteCorpus(${corpus.id})">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+        
+        container.innerHTML = html;
+    }
+
+    function showCorpusModal() {
+        const modal = new bootstrap.Modal(document.getElementById('corpusModal'));
+        modal.show();
+    }
+
+    // HuggingFace dataset metadata functions
+    async function loadDatasetMetadata() {
+        const datasetName = document.getElementById('hf-dataset').value.trim();
+        if (!datasetName) {
+            showAlert('Please enter a dataset name first', 'warning');
+            return;
+        }
+        
+        // Show loading state
+        document.getElementById('dataset-loading').style.display = 'block';
+        document.getElementById('dataset-info').style.display = 'none';
+        
+        try {
+            const response = await axios.get(`/corpus/huggingface/metadata?dataset_name=${encodeURIComponent(datasetName)}`);
+            datasetMetadata = response.data;
+            
+            // Populate form fields
+            populateDatasetForm(datasetMetadata);
+            
+            // Show the form
+            document.getElementById('dataset-info').style.display = 'block';
+            
+        } catch (error) {
+            showAlert('Error loading dataset metadata: ' + (error.response?.data?.detail || error.message), 'danger');
+        } finally {
+            document.getElementById('dataset-loading').style.display = 'none';
+        }
+    }
+    
+    function populateDatasetForm(metadata) {
+        // Set corpus name to dataset name
+        document.getElementById('hf-name').value = metadata.dataset_name;
+        
+        // Populate config dropdown
+        const configSelect = document.getElementById('hf-config');
+        configSelect.innerHTML = '<option value="">Select a config...</option>';
+        
+        metadata.configs.forEach(config => {
+            const option = document.createElement('option');
+            option.value = config.name || '';
+            option.textContent = config.name || 'Default';
+            configSelect.appendChild(option);
+        });
+        
+        // Set default config if available
+        if (metadata.default_config !== null) {
+            configSelect.value = metadata.default_config;
+        }
+        
+        // Update splits and columns when config changes
+        updateSplitsAndColumns();
+    }
+    
+    function updateSplitsAndColumns() {
+        if (!datasetMetadata) return;
+        
+        const configName = document.getElementById('hf-config').value;
+        const config = datasetMetadata.configs.find(c => (c.name || '') === (configName || ''));
+        
+        if (!config) return;
+        
+        // Populate splits dropdown
+        const splitSelect = document.getElementById('hf-split');
+        splitSelect.innerHTML = '<option value="">Select a split...</option>';
+        
+        config.splits.forEach(split => {
+            const option = document.createElement('option');
+            option.value = split;
+            option.textContent = split;
+            splitSelect.appendChild(option);
+        });
+        
+        // Set default split to 'train' if available
+        if (config.splits.includes('train')) {
+            splitSelect.value = 'train';
+        } else if (config.splits.length > 0) {
+            splitSelect.value = config.splits[0];
+        }
+        
+        // Populate columns dropdown
+        const columnSelect = document.getElementById('hf-column');
+        columnSelect.innerHTML = '<option value="">Select a column...</option>';
+        
+        config.columns.forEach(column => {
+            const option = document.createElement('option');
+            option.value = column;
+            option.textContent = column;
+            columnSelect.appendChild(option);
+        });
+        
+        // Set default column to 'text' if available
+        if (config.columns.includes('text')) {
+            columnSelect.value = 'text';
+        } else if (config.columns.length > 0) {
+            columnSelect.value = config.columns[0];
+        }
+    }
+
+    // Form submissions
+    document.getElementById('upload-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData();
+        formData.append('name', document.getElementById('upload-name').value);
+        formData.append('description', document.getElementById('upload-description').value);
+        formData.append('file', document.getElementById('upload-file').files[0]);
+        
+        try {
+            await axios.post('/corpus/upload', formData);
+            bootstrap.Modal.getInstance(document.getElementById('corpusModal')).hide();
+            loadCorpora();
+            showAlert('Corpus uploaded successfully!', 'success');
+        } catch (error) {
+            showAlert('Error uploading corpus: ' + error.response.data.detail, 'danger');
+        }
+    });
+
+    document.getElementById('huggingface-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        // Validate that dataset info has been loaded
+        if (!datasetMetadata) {
+            showAlert('Please load dataset information first', 'warning');
+            return;
+        }
+        
+        const data = {
+            name: document.getElementById('hf-name').value,
+            dataset_name: document.getElementById('hf-dataset').value,
+            split: document.getElementById('hf-split').value,
+            text_column: document.getElementById('hf-column').value
+        };
+        
+        // Add config_name if provided
+        const configName = document.getElementById('hf-config').value.trim();
+        if (configName) {
+            data.config_name = configName;
+        }
+        
+        // Validate required fields
+        if (!data.name || !data.split || !data.text_column) {
+            showAlert('Please fill in all required fields', 'warning');
+            return;
+        }
+        
+        try {
+            await axios.post('/corpus/huggingface', data);
+            bootstrap.Modal.getInstance(document.getElementById('corpusModal')).hide();
+            loadCorpora();
+            showAlert('HuggingFace dataset loaded successfully!', 'success');
+            
+            // Reset form
+            document.getElementById('dataset-info').style.display = 'none';
+            document.getElementById('hf-dataset').value = '';
+            datasetMetadata = null;
+        } catch (error) {
+            showAlert('Error loading dataset: ' + (error.response?.data?.detail || error.message), 'danger');
+        }
+    });
+
+    // Add event listener for config dropdown change
+    document.addEventListener('DOMContentLoaded', function() {
+        document.getElementById('hf-config').addEventListener('change', updateSplitsAndColumns);
+        loadCorpora();
+    });
+
+    // Placeholder functions for future implementation
+    function viewCorpus(id) {
+        showAlert('View corpus functionality coming soon!', 'info');
+    }
+
+    function deleteCorpus(id) {
+        if (confirm('Are you sure you want to delete this corpus?')) {
+            axios.delete(`/corpus/${id}`)
+                .then(() => {
+                    loadCorpora();
+                    showAlert('Corpus deleted successfully!', 'success');
+                })
+                .catch(error => {
+                    showAlert('Error deleting corpus: ' + error.response.data.detail, 'danger');
+                });
+        }
+    }
+</script>
+{% endblock %} 

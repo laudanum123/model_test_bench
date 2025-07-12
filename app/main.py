@@ -49,8 +49,39 @@ async def startup_event():
 
 @app.get("/")
 async def root(request: Request):
-    """Root endpoint - serve the main web interface"""
-    return templates.TemplateResponse("index.html", {"request": request})
+    """Root endpoint - redirect to dashboard"""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/dashboard")
+
+
+@app.get("/dashboard")
+async def dashboard(request: Request):
+    """Dashboard page"""
+    return templates.TemplateResponse("dashboard.html", {"request": request, "active_page": "dashboard"})
+
+
+@app.get("/corpus")
+async def corpus_page(request: Request):
+    """Corpus management page"""
+    return templates.TemplateResponse("corpus.html", {"request": request, "active_page": "corpus"})
+
+
+@app.get("/questions")
+async def questions_page(request: Request):
+    """Questions page"""
+    return templates.TemplateResponse("questions.html", {"request": request, "active_page": "questions"})
+
+
+@app.get("/evaluation")
+async def evaluation_page(request: Request):
+    """Evaluation list page"""
+    return templates.TemplateResponse("evaluation.html", {"request": request, "active_page": "evaluation"})
+
+
+@app.get("/new-evaluation")
+async def new_evaluation_page(request: Request):
+    """New evaluation creation page"""
+    return templates.TemplateResponse("new_evaluation.html", {"request": request, "active_page": "new-evaluation"})
 
 
 @app.get("/health")
