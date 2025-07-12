@@ -59,6 +59,19 @@ async def health_check():
     return {"status": "healthy", "app": settings.app_name}
 
 
+@app.get("/favicon.ico")
+async def favicon():
+    """Serve favicon"""
+    from fastapi.responses import FileResponse
+    import os
+    favicon_path = os.path.join("app", "static", "favicon.ico")
+    if os.path.exists(favicon_path):
+        return FileResponse(favicon_path)
+    else:
+        from fastapi.responses import Response
+        return Response(status_code=404)
+
+
 @app.get("/api/models")
 async def get_available_models():
     """Get available models for different providers"""
