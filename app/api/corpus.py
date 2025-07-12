@@ -6,7 +6,6 @@ import os
 from datasets import load_dataset, Dataset, DatasetDict, IterableDataset, IterableDatasetDict, get_dataset_config_names, get_dataset_split_names, get_dataset_infos
 from app.database import get_db, Corpus
 from app.models.schemas import CorpusCreate, Corpus as CorpusSchema, HuggingFaceCorpusRequest
-from app.config import settings
 from app.typing_helpers.vector_store_protocols import DatasetItem
 
 router = APIRouter(prefix="/corpus", tags=["corpus"])
