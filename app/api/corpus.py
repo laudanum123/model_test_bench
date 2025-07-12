@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, cast
 import aiofiles
 import os
-from datasets import load_dataset
+from datasets import load_dataset, Dataset, DatasetDict, IterableDataset, IterableDatasetDict
 from app.database import get_db, Corpus
-from app.models.schemas import CorpusCreate, Corpus as CorpusSchema
+from app.models.schemas import CorpusCreate, Corpus as CorpusSchema, HuggingFaceCorpusRequest
 from app.config import settings
 
 router = APIRouter(prefix="/corpus", tags=["corpus"])
@@ -58,6 +58,10 @@ async def upload_corpus(
 ):
     """Upload a text file as a corpus"""
     try:
+
+        if file.filename is None:
+            raise HTTPException(status_code=400, detail="File name is required")
+        
         # Validate file type
         if not file.filename.endswith(('.txt', '.md', '.csv')):
             raise HTTPException(status_code=400, detail="Only .txt, .md, and .csv files are supported")
@@ -99,30 +103,51 @@ async def upload_corpus(
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
 
-
 @router.post("/huggingface")
 async def create_huggingface_corpus(
-    name: str,
-    dataset_name: str,
-    split: str = "train",
-    text_column: str = "text",
-    description: Optional[str] = None,
+    request: HuggingFaceCorpusRequest,
     db: Session = Depends(get_db)
 ):
     """Create a corpus from a HuggingFace dataset"""
     try:
         # Load dataset from HuggingFace
-        dataset = load_dataset(dataset_name, split=split)
+        if request.config_name:
+            dataset_raw = load_dataset(request.dataset_name, request.config_name, split=request.split)
+        else:
+            dataset_raw = load_dataset(request.dataset_name, split=request.split)
         
-        # Extract text content
-        if text_column not in dataset.column_names:
-            raise HTTPException(status_code=400, detail=f"Column '{text_column}' not found in dataset")
+        # 1️⃣ Reject streaming datasets early
+        if isinstance(dataset_raw, (IterableDataset, IterableDatasetDict)):
+            raise HTTPException(
+                status_code=400,
+                detail="Iterable (streaming) datasets don't expose their length; "
+                "remove `streaming=True` or count samples another way."
+            )
+
+        # 2️⃣ Resolve a specific split if the user gave the dataset (not a split) by mistake
+        if isinstance(dataset_raw, DatasetDict):
+            if request.split not in dataset_raw:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Split '{request.split}' not found in dataset")
+            dataset: Dataset = dataset_raw[request.split]
+        else:
+            dataset = cast(Dataset, dataset_raw)
+
+         # Extract text content
+        column_names = dataset.column_names
+        if column_names is None or request.text_column not in column_names:
+            available_columns = ", ".join(column_names) if column_names else "none"
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Column '{request.text_column}' not found in dataset. Available columns: {available_columns}"
+            )
         
-        texts = dataset[text_column]
+        texts = dataset[request.text_column]
         combined_text = "\n\n".join([str(text) for text in texts if text])
         
         # Save to file
-        file_path = f"data/hf_corpus_{name}.txt"
+        file_path = f"data/hf_corpus_{request.name}.txt"
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
         
         async with aiofiles.open(file_path, 'w', encoding='utf-8') as f:
@@ -130,13 +155,14 @@ async def create_huggingface_corpus(
         
         # Create corpus record
         corpus = Corpus(
-            name=name,
-            description=description,
+            name=request.name,
+            description=request.description,
             source="huggingface",
             source_config={
-                "dataset_name": dataset_name,
-                "split": split,
-                "text_column": text_column,
+                "dataset_name": request.dataset_name,
+                "config_name": request.config_name,
+                "split": request.split,
+                "text_column": request.text_column,
                 "file_path": file_path,
                 "num_samples": len(dataset)
             }
@@ -152,6 +178,15 @@ async def create_huggingface_corpus(
             "message": f"HuggingFace corpus created successfully. {len(dataset)} samples loaded."
         }
     
+    except ValueError as e:
+        # Handle config name missing error specifically
+        if "Config name is missing" in str(e):
+            raise HTTPException(
+                status_code=400,
+                detail=f"This dataset requires a config name. Please specify one of the available configs. Error: {str(e)}"
+            )
+        else:
+            raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
@@ -165,7 +200,7 @@ async def get_corpus_content(corpus_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Corpus not found")
     
     try:
-        if corpus.source == "upload" or corpus.source == "huggingface":
+        if corpus.source in ["upload", "huggingface"]:
             file_path = corpus.source_config.get("file_path")
             if not file_path or not os.path.exists(file_path):
                 raise HTTPException(status_code=404, detail="Corpus file not found")
@@ -194,10 +229,10 @@ async def delete_corpus(corpus_id: int, db: Session = Depends(get_db)):
     
     try:
         # Delete associated file if it exists
-        if corpus.source_config and "file_path" in corpus.source_config:
+        if corpus.source_config is not None and "file_path" in corpus.source_config:
             file_path = corpus.source_config["file_path"]
-            if os.path.exists(file_path):
-                os.remove(file_path)
+            if file_path is not None and os.path.exists(str(file_path)):
+                os.remove(str(file_path))
         
         db.delete(corpus)
         db.commit()

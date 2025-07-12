@@ -6,7 +6,7 @@ from app.services.embedding_service import EmbeddingServiceFactory, EmbeddingPro
 from app.services.vector_store_service import VectorStoreServiceFactory
 from app.services.reranker_service import RerankerServiceFactory
 from app.models.schemas import RetrievalStrategy, VectorStore
-from typing_helpers.vector_store_protocols import SupportsUpdateEmbeddings
+from app.typing_helpers.vector_store_protocols import SupportsUpdateEmbeddings
 
 
 
