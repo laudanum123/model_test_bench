@@ -13,12 +13,12 @@ class Settings(BaseSettings):
     
     # Application
     app_name: str = "Model Test Bench"
-    debug: bool = False
+    debug: bool = True  # Set to True for debugging
     host: str = "0.0.0.0"
     port: int = 8000
     
     # Model Settings
-    default_llm_model: str = "gpt-4.1"
+    default_llm_model: str = "gpt-4.1-mini"
     default_embedding_model: str = "text-embedding-ada-002"
     default_reranker_model: str = "BAAI/bge-reranker-v2-m3"
     
