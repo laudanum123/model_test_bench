@@ -10,7 +10,7 @@ class QuestionGeneratorService:
     """Service for generating synthetic questions from text corpora"""
     
     def __init__(self, llm_provider: LLMProvider = LLMProvider.OPENAI, 
-                 llm_model: str = "gpt-3.5-turbo"):
+                 llm_model: str = "gpt-4.1"):
         self.llm_service = LLMServiceFactory.create_service(llm_provider, llm_model)
     
     async def generate_questions_from_text(self, text: str, num_questions: int = 5, 

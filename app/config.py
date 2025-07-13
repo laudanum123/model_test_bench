@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     port: int = 8000
     
     # Model Settings
-    default_llm_model: str = "gpt-3.5-turbo"
+    default_llm_model: str = "gpt-4.1"
     default_embedding_model: str = "text-embedding-ada-002"
     default_reranker_model: str = "BAAI/bge-reranker-v2-m3"
     

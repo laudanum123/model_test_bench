@@ -11,7 +11,7 @@ class EvaluationService:
     """Service for evaluating LLM responses and retrieval quality"""
     
     def __init__(self, judge_provider: LLMProvider = LLMProvider.OPENAI, 
-                 judge_model: str = "gpt-3.5-turbo"):
+                 judge_model: str = "gpt-4.1"):
         self.judge_service = LLMServiceFactory.create_service(judge_provider, judge_model)
         self.embedding_service = EmbeddingServiceFactory.create_service(
             EmbeddingProvider.SENTENCE_TRANSFORMERS, "all-MiniLM-L6-v2"

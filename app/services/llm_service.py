@@ -24,7 +24,7 @@ class LLMService(ABC):
 class OpenAIService(LLMService):
     """OpenAI API service"""
     
-    def __init__(self, model: str = "gpt-3.5-turbo"):
+    def __init__(self, model: str = "gpt-4.1"):
         self.model = model
         if settings.openai_api_key:
             openai.api_key = settings.openai_api_key

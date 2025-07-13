@@ -109,7 +109,7 @@ async def get_available_models():
     return {
         "llm_providers": {
             "openai": [
-                "gpt-3.5-turbo",
+                "gpt-4.1",
                 "gpt-4",
                 "gpt-4-turbo-preview"
             ],
