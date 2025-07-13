@@ -23,7 +23,7 @@ class Question(Base):
     id = Column(Integer, primary_key=True, index=True)
     corpus_id = Column(Integer, nullable=False)
     question_text = Column(Text, nullable=False)
-    reference_answer = Column(Text, nullable=False)
+    reference_answer = Column(Text, nullable=True)
     generated_by = Column(String)  # "manual", "ai"
     created_at = Column(DateTime, default=datetime.utcnow)
 
