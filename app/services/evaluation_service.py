@@ -198,4 +198,4 @@ Provide only the numerical score (0.0-1.0):"""
             return evaluation_result
         except Exception as e:
             db.rollback()
-            raise Exception(f"Error saving evaluation result: {e!s}")
+            raise Exception(f"Error saving evaluation result: {e!s}") from e
