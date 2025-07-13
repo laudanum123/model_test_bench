@@ -47,7 +47,7 @@ class Corpus(CorpusBase):
 
 class QuestionBase(BaseModel):
     question_text: str = Field(..., description="The question text")
-    reference_answer: str = Field(..., description="The reference answer")
+    reference_answer: Optional[str] = Field(None, description="The reference answer")
     generated_by: str = Field(..., description="How the question was generated: manual, ai")
 
 
@@ -124,11 +124,25 @@ class EvaluationResult(EvaluationResultBase):
         from_attributes = True
 
 
+class GenerateQuestionsRequest(BaseModel):
+    corpus_id: int
+    num_questions: int = 5
+    model_provider: LLMProvider = LLMProvider.OPENAI
+    model_name: str = "gpt-4.1"
+
+class GenerateQuestionsByTopicRequest(BaseModel):
+    corpus_id: int
+    topics: List[str]
+    questions_per_topic: int = 3
+    model_provider: LLMProvider = LLMProvider.OPENAI
+    model_name: str = "gpt-4.1"
+
+
 class QuestionGenerationRequest(BaseModel):
     corpus_id: int
     num_questions: int = Field(5, ge=1, le=50, description="Number of questions to generate")
     model_provider: LLMProvider = LLMProvider.OPENAI
-    model_name: str = Field("gpt-3.5-turbo", description="Model to use for generation")
+    model_name: str = Field("gpt-4.1", description="Model to use for generation")
 
 
 class EvaluationRequest(BaseModel):

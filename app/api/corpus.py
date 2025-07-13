@@ -3,11 +3,14 @@ from sqlalchemy.orm import Session
 from typing import List, Optional, cast
 import aiofiles
 import os
+import logging
 from datasets import load_dataset, Dataset, DatasetDict, IterableDataset, IterableDatasetDict, get_dataset_config_names, get_dataset_split_names, get_dataset_infos
 from app.database import get_db, Corpus
 from app.models.schemas import CorpusCreate, Corpus as CorpusSchema, HuggingFaceCorpusRequest
-from app.config import settings
 from app.typing_helpers.vector_store_protocols import DatasetItem
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/corpus", tags=["corpus"])
 
@@ -284,28 +287,40 @@ async def create_huggingface_corpus(
 @router.get("/{corpus_id}/content")
 async def get_corpus_content(corpus_id: int, db: Session = Depends(get_db)):
     """Get the text content of a corpus"""
+    logger.info(f"Retrieving content for corpus_id: {corpus_id}")
+    
     corpus = db.query(Corpus).filter(Corpus.id == corpus_id).first()
     if not corpus:
+        logger.error(f"Corpus not found with id: {corpus_id}")
         raise HTTPException(status_code=404, detail="Corpus not found")
+    
+    logger.info(f"Found corpus: {corpus.name}, source: {corpus.source}")
     
     try:
         if corpus.source in ["upload", "huggingface"]:
             file_path = corpus.source_config.get("file_path")
+            logger.debug(f"File path from source_config: {file_path}")
+            
             if not file_path or not os.path.exists(file_path):
+                logger.error(f"Corpus file not found at path: {file_path}")
                 raise HTTPException(status_code=404, detail="Corpus file not found")
             
+            logger.debug(f"Reading file from: {file_path}")
             async with aiofiles.open(file_path, 'r', encoding='utf-8') as f:
                 content = await f.read()
             
+            logger.info(f"Successfully read corpus content, length: {len(content)} characters")
             return {
                 "corpus_id": corpus_id,
                 "content": content,
                 "length": len(content)
             }
         else:
+            logger.error(f"Unsupported corpus source: {corpus.source}")
             raise HTTPException(status_code=400, detail="Unsupported corpus source")
     
     except Exception as e:
+        logger.error(f"Error retrieving corpus content: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

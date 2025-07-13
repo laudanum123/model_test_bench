@@ -15,3 +15,4 @@ wheels/
 .env.*.local
 data/
 
+app.log

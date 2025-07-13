@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+
+{% block title %}New Evaluation - Model Test Bench{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2 class="mb-4">
+            <i class="fas fa-plus me-2"></i>New Evaluation
+        </h2>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <form id="evaluation-form">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Evaluation Name</label>
+                            <input type="text" class="form-control" id="evaluation-name" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Corpus</label>
+                            <select class="form-select" id="evaluation-corpus" required>
+                                <option value="">Select a corpus...</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">LLM Provider</label>
+                            <select class="form-select" id="llm-provider" onchange="updateLLMModels()">
+                                <option value="openai">OpenAI</option>
+                                <option value="transformers">Transformers</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">LLM Model</label>
+                            <select class="form-select" id="llm-model" required>
+                                <option value="">Select model...</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Embedding Provider</label>
+                            <select class="form-select" id="embedding-provider" onchange="updateEmbeddingModels()">
+                                <option value="openai">OpenAI</option>
+                                <option value="sentence_transformers">Sentence Transformers</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Embedding Model</label>
+                            <select class="form-select" id="embedding-model" required>
+                                <option value="">Select model...</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Vector Store</label>
+                            <select class="form-select" id="vector-store" required>
+                                <option value="chroma">ChromaDB</option>
+                                <option value="faiss">FAISS</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Retrieval Strategy</label>
+                            <select class="form-select" id="retrieval-strategy" required>
+                                <option value="semantic">Semantic</option>
+                                <option value="hybrid">Hybrid</option>
+                                <option value="bm25">BM25</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Reranker Model (Optional)</label>
+                            <select class="form-select" id="reranker-model">
+                                <option value="">None</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-play me-2"></i>Start Evaluation
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // New evaluation-specific JavaScript
+    function updateLLMModels() {
+        const provider = document.getElementById('llm-provider').value;
+        const modelSelect = document.getElementById('llm-model');
+        modelSelect.innerHTML = '<option value="">Select model...</option>';
+        
+        if (availableModels.llm_providers && availableModels.llm_providers[provider]) {
+            availableModels.llm_providers[provider].forEach(model => {
+                const option = document.createElement('option');
+                option.value = model;
+                option.textContent = model;
+                modelSelect.appendChild(option);
+            });
+        }
+    }
+
+    function updateEmbeddingModels() {
+        const provider = document.getElementById('embedding-provider').value;
+        const modelSelect = document.getElementById('embedding-model');
+        modelSelect.innerHTML = '<option value="">Select model...</option>';
+        
+        if (availableModels.embedding_providers && availableModels.embedding_providers[provider]) {
+            availableModels.embedding_providers[provider].forEach(model => {
+                const option = document.createElement('option');
+                option.value = model;
+                option.textContent = model;
+                modelSelect.appendChild(option);
+            });
+        }
+    }
+
+    async function loadCorporaForEvaluation() {
+        try {
+            const response = await axios.get('/corpus/');
+            const select = document.getElementById('evaluation-corpus');
+            select.innerHTML = '<option value="">Select a corpus...</option>';
+            
+            response.data.forEach(corpus => {
+                const option = document.createElement('option');
+                option.value = corpus.id;
+                option.textContent = corpus.name;
+                select.appendChild(option);
+            });
+        } catch (error) {
+            console.error('Error loading corpora for evaluation:', error);
+        }
+    }
+
+    // Form submission
+    document.getElementById('evaluation-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const data = {
+            name: document.getElementById('evaluation-name').value,
+            description: '',
+            corpus_id: parseInt(document.getElementById('evaluation-corpus').value),
+            stack_config: {
+                llm_provider: document.getElementById('llm-provider').value,
+                llm_model: document.getElementById('llm-model').value,
+                embedding_provider: document.getElementById('embedding-provider').value,
+                embedding_model: document.getElementById('embedding-model').value,
+                vector_store: document.getElementById('vector-store').value,
+                retrieval_strategy: document.getElementById('retrieval-strategy').value,
+                reranker_model: document.getElementById('reranker-model').value || null
+            }
+        };
+        
+        try {
+            const response = await axios.post('/evaluation/', data);
+            showAlert('Evaluation created successfully!', 'success');
+            window.location.href = '/evaluation';
+        } catch (error) {
+            showAlert('Error creating evaluation: ' + error.response.data.detail, 'danger');
+        }
+    });
+
+    // Initialize when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        loadCorporaForEvaluation();
+        updateLLMModels();
+        updateEmbeddingModels();
+    });
+</script>
+{% endblock %} 

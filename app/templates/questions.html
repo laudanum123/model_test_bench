@@ -1,0 +1,393 @@
+{% extends "base.html" %}
+
+{% block title %}Questions - Model Test Bench{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2 class="mb-4">
+            <i class="fas fa-question-circle me-2"></i>Questions
+        </h2>
+    </div>
+</div>
+
+<!-- Corpus Selection -->
+<div class="row mb-3">
+    <div class="col-md-6">
+        <label for="questions-corpus-select" class="form-label">Select Corpus</label>
+        <select class="form-select" id="questions-corpus-select">
+            <option value="">Select a corpus...</option>
+        </select>
+    </div>
+</div>
+
+<!-- Action Buttons -->
+<div class="row mb-4" id="action-buttons" style="display: none;">
+    <div class="col-12">
+        <div class="btn-group" role="group">
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addQuestionModal">
+                <i class="fas fa-plus me-2"></i>Add Question Manually
+            </button>
+            <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#generateQuestionsModal">
+                <i class="fas fa-magic me-2"></i>Generate Questions with AI
+            </button>
+            <button type="button" class="btn btn-info" data-bs-toggle="modal" data-bs-target="#generateByTopicModal">
+                <i class="fas fa-tags me-2"></i>Generate by Topic
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Questions List -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div id="questions-list">
+                    <p class="text-muted">Select a corpus to view questions.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+<!-- Add Question Manually Modal -->
+<div class="modal fade" id="addQuestionModal" tabindex="-1" aria-labelledby="addQuestionModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addQuestionModalLabel">Add Question Manually</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addQuestionForm">
+                    <div class="mb-3">
+                        <label for="questionText" class="form-label">Question Text</label>
+                        <textarea class="form-control" id="questionText" rows="3" required></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="referenceAnswer" class="form-label">Reference Answer (Optional)</label>
+                        <textarea class="form-control" id="referenceAnswer" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="addQuestion()">Add Question</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Generate Questions with AI Modal -->
+<div class="modal fade" id="generateQuestionsModal" tabindex="-1" aria-labelledby="generateQuestionsModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="generateQuestionsModalLabel">Generate Questions with AI</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="generateQuestionsForm">
+                    <div class="mb-3">
+                        <label for="numQuestions" class="form-label">Number of Questions</label>
+                        <input type="number" class="form-control" id="numQuestions" value="5" min="1" max="20" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="modelProvider" class="form-label">Model Provider</label>
+                        <select class="form-select" id="modelProvider" required>
+                            <option value="openai">OpenAI</option>
+                            <option value="transformers">Transformers (Local)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="modelName" class="form-label">Model Name</label>
+                        <input type="text" class="form-control" id="modelName" value="gpt-4.1" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" onclick="generateQuestions()">Generate Questions</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Generate Questions by Topic Modal -->
+<div class="modal fade" id="generateByTopicModal" tabindex="-1" aria-labelledby="generateByTopicModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="generateByTopicModalLabel">Generate Questions by Topic</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="generateByTopicForm">
+                    <div class="mb-3">
+                        <label for="topics" class="form-label">Topics (comma-separated)</label>
+                        <input type="text" class="form-control" id="topics" placeholder="e.g., machine learning, neural networks, data preprocessing" required>
+                        <div class="form-text">Enter topics separated by commas</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="questionsPerTopic" class="form-label">Questions per Topic</label>
+                        <input type="number" class="form-control" id="questionsPerTopic" value="3" min="1" max="10" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="topicModelProvider" class="form-label">Model Provider</label>
+                        <select class="form-select" id="topicModelProvider" required>
+                            <option value="openai">OpenAI</option>
+                            <option value="transformers">Transformers (Local)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="topicModelName" class="form-label">Model Name</label>
+                        <input type="text" class="form-control" id="topicModelName" value="gpt-4.1" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-info" onclick="generateQuestionsByTopic()">Generate by Topic</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let currentCorpusId = null;
+
+    // Questions-specific JavaScript
+    async function loadCorporaForQuestions() {
+        try {
+            const response = await axios.get('/corpus/');
+            const select = document.getElementById('questions-corpus-select');
+            select.innerHTML = '<option value="">Select a corpus...</option>';
+            response.data.forEach(corpus => {
+                const option = document.createElement('option');
+                option.value = corpus.id;
+                option.textContent = corpus.name;
+                select.appendChild(option);
+            });
+        } catch (error) {
+            console.error('Error loading corpora for questions:', error);
+        }
+    }
+
+    async function loadQuestionsForCorpus(corpusId) {
+        const questionsList = document.getElementById('questions-list');
+        const actionButtons = document.getElementById('action-buttons');
+        
+        if (!corpusId) {
+            questionsList.innerHTML = '<p class="text-muted">Select a corpus to view questions.</p>';
+            actionButtons.style.display = 'none';
+            currentCorpusId = null;
+            return;
+        }
+        
+        currentCorpusId = corpusId;
+        actionButtons.style.display = 'block';
+        
+        try {
+            const response = await axios.get(`/questions/?corpus_id=${corpusId}`);
+            const questions = response.data;
+            if (questions.length === 0) {
+                questionsList.innerHTML = '<p class="text-muted">No questions found for this corpus.</p>';
+                return;
+            }
+            const html = questions.map(q => `
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <h6 class="card-title">Q: ${q.question_text}</h6>
+                                ${q.reference_answer ? `<p class="card-text"><strong>Reference Answer:</strong> ${q.reference_answer}</p>` : ''}
+                                <small class="text-muted">Generated by: ${q.generated_by}</small>
+                            </div>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteQuestion(${q.id})">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            questionsList.innerHTML = html;
+        } catch (error) {
+            questionsList.innerHTML = '<p class="text-danger">Error loading questions.</p>';
+        }
+    }
+
+    async function addQuestion() {
+        if (!currentCorpusId) {
+            alert('Please select a corpus first.');
+            return;
+        }
+
+        const questionText = document.getElementById('questionText').value.trim();
+        const referenceAnswer = document.getElementById('referenceAnswer').value.trim();
+
+        if (!questionText) {
+            alert('Question text is required.');
+            return;
+        }
+
+        try {
+            const response = await axios.post('/questions/', {
+                corpus_id: parseInt(currentCorpusId),
+                question_text: questionText,
+                reference_answer: referenceAnswer || null,
+                generated_by: 'manual'
+            });
+
+            // Close modal and reset form
+            const modal = bootstrap.Modal.getInstance(document.getElementById('addQuestionModal'));
+            if (modal) {
+                modal.hide();
+            }
+            document.getElementById('addQuestionForm').reset();
+
+            // Reload questions
+            await loadQuestionsForCorpus(currentCorpusId);
+            
+            // Show success message
+            showAlert('Question added successfully!', 'success');
+        } catch (error) {
+            console.error('Error adding question:', error);
+            showAlert('Error adding question: ' + (error.response?.data?.detail || error.message), 'danger');
+        }
+    }
+
+    async function generateQuestions() {
+        if (!currentCorpusId) {
+            alert('Please select a corpus first.');
+            return;
+        }
+
+        const numQuestions = parseInt(document.getElementById('numQuestions').value);
+        const modelProvider = document.getElementById('modelProvider').value;
+        const modelName = document.getElementById('modelName').value;
+
+        try {
+            const response = await axios.post('/questions/generate', {
+                corpus_id: parseInt(currentCorpusId),
+                num_questions: numQuestions,
+                model_provider: modelProvider,
+                model_name: modelName
+            });
+
+            // Close modal and reset form
+            const modal = bootstrap.Modal.getInstance(document.getElementById('generateQuestionsModal'));
+            if (modal) {
+                modal.hide();
+            }
+            document.getElementById('generateQuestionsForm').reset();
+
+            // Reload questions
+            await loadQuestionsForCorpus(currentCorpusId);
+            
+            // Show success message
+            showAlert(`Generated ${response.data.questions.length} questions successfully!`, 'success');
+        } catch (error) {
+            console.error('Error generating questions:', error);
+            showAlert('Error generating questions: ' + (error.response?.data?.detail || error.message), 'danger');
+        }
+    }
+
+    async function generateQuestionsByTopic() {
+        if (!currentCorpusId) {
+            alert('Please select a corpus first.');
+            return;
+        }
+
+        const topicsText = document.getElementById('topics').value.trim();
+        const questionsPerTopic = parseInt(document.getElementById('questionsPerTopic').value);
+        const modelProvider = document.getElementById('topicModelProvider').value;
+        const modelName = document.getElementById('topicModelName').value;
+
+        if (!topicsText) {
+            alert('Please enter at least one topic.');
+            return;
+        }
+
+        const topics = topicsText.split(',').map(t => t.trim()).filter(t => t);
+
+        try {
+            const response = await axios.post('/questions/generate-by-topic', {
+                corpus_id: parseInt(currentCorpusId),
+                topics: topics,
+                questions_per_topic: questionsPerTopic,
+                model_provider: modelProvider,
+                model_name: modelName
+            });
+
+            // Close modal and reset form
+            const modal = bootstrap.Modal.getInstance(document.getElementById('generateByTopicModal'));
+            if (modal) {
+                modal.hide();
+            }
+            document.getElementById('generateByTopicForm').reset();
+
+            // Reload questions
+            await loadQuestionsForCorpus(currentCorpusId);
+            
+            // Show success message
+            showAlert(`Generated ${response.data.questions.length} questions for ${topics.length} topics!`, 'success');
+        } catch (error) {
+            console.error('Error generating questions by topic:', error);
+            showAlert('Error generating questions: ' + (error.response?.data?.detail || error.message), 'danger');
+        }
+    }
+
+    async function deleteQuestion(questionId) {
+        if (!confirm('Are you sure you want to delete this question?')) {
+            return;
+        }
+
+        try {
+            await axios.delete(`/questions/${questionId}`);
+            await loadQuestionsForCorpus(currentCorpusId);
+            showAlert('Question deleted successfully!', 'success');
+        } catch (error) {
+            console.error('Error deleting question:', error);
+            showAlert('Error deleting question: ' + (error.response?.data?.detail || error.message), 'danger');
+        }
+    }
+
+    function showAlert(message, type) {
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+        alertDiv.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        const container = document.querySelector('.container');
+        container.insertBefore(alertDiv, container.firstChild);
+        
+        // Auto-dismiss after 5 seconds
+        setTimeout(() => {
+            if (alertDiv.parentNode) {
+                alertDiv.remove();
+            }
+        }, 5000);
+    }
+
+    // Initialize when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        loadCorporaForQuestions();
+        document.getElementById('questions-corpus-select').addEventListener('change', function() {
+            loadQuestionsForCorpus(this.value);
+        });
+        
+        // Initialize Bootstrap modals
+        const modals = document.querySelectorAll('.modal');
+        modals.forEach(modalElement => {
+            new bootstrap.Modal(modalElement);
+        });
+    });
+</script>
+{% endblock %} 
