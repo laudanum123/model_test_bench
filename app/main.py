@@ -3,9 +3,32 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 import os
+import logging
 from app.config import settings
 from app.database import create_tables
 from app.api import corpus, evaluation, questions
+
+# Configure logging
+import pathlib
+
+# Get the project root directory (where main.py is located)
+project_root = pathlib.Path(__file__).parent.parent
+log_file_path = project_root / "app.log"
+
+logging.basicConfig(
+    level=logging.DEBUG if settings.debug else logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler(log_file_path) if settings.debug else logging.NullHandler()
+    ]
+)
+
+logger = logging.getLogger(__name__)
+
+# Log the debug setting and log file path for troubleshooting
+logger.info(f"Debug mode: {settings.debug}")
+logger.info(f"Log file path: {log_file_path}")
 
 # Create FastAPI app
 app = FastAPI(
@@ -42,9 +65,10 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 @app.on_event("startup")
 async def startup_event():
     """Initialize the application on startup"""
+    logger.info("Starting application...")
     # Create database tables
     create_tables()
-    print(f"🚀 {settings.app_name} started successfully!")
+    logger.info(f"🚀 {settings.app_name} started successfully!")
 
 
 @app.get("/")
@@ -152,5 +176,5 @@ if __name__ == "__main__":
         "app.main:app",
         host=settings.host,
         port=settings.port,
-        reload=settings.debug
+        reload=False
     ) 
