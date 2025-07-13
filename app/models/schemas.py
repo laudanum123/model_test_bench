@@ -127,14 +127,14 @@ class EvaluationResult(EvaluationResultBase):
 class GenerateQuestionsRequest(BaseModel):
     corpus_id: int
     num_questions: int = 5
-    model_provider: str = "openai"
+    model_provider: LLMProvider = LLMProvider.OPENAI
     model_name: str = "gpt-4.1"
 
 class GenerateQuestionsByTopicRequest(BaseModel):
     corpus_id: int
     topics: List[str]
     questions_per_topic: int = 3
-    model_provider: str = "openai"
+    model_provider: LLMProvider = LLMProvider.OPENAI
     model_name: str = "gpt-4.1"
 
 
