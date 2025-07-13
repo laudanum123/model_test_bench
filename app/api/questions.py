@@ -1,12 +1,17 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List, Optional   
-import logging
-from app.database import get_db, Question, Corpus
-from app.models.schemas import QuestionCreate, Question as QuestionSchema, GenerateQuestionsRequest, GenerateQuestionsByTopicRequest
-from app.services.question_generator import QuestionGeneratorService
+
 from app.api.corpus import get_corpus_content
-from app.services.llm_service import LLMProvider
+from app.database import Corpus, Question, get_db
+from app.models.schemas import (  # type: ignore
+    GenerateQuestionsByTopicRequest,
+    GenerateQuestionsRequest,
+    QuestionCreate,
+)
+from app.models.schemas import Question as QuestionSchema
+from app.services.question_generator import QuestionGeneratorService
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -27,31 +32,31 @@ async def create_question(
         if not corpus:
             logger.error(f"Corpus not found with id: {question.corpus_id}")
             raise HTTPException(status_code=404, detail="Corpus not found")
-        
+
         logger.debug(f"Found corpus: {corpus.name}")
-        
+
         db_question = Question(
             corpus_id=question.corpus_id,
             question_text=question.question_text,
             reference_answer=question.reference_answer,
             generated_by=question.generated_by
         )
-        
+
         db.add(db_question)
         db.commit()
         db.refresh(db_question)
         logger.info(f"Successfully created question with id: {db_question.id}")
         return db_question
-    
+
     except Exception as e:
-        logger.error(f"Error creating question: {str(e)}")
+        logger.error(f"Error creating question: {e!s}")
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
-@router.get("/", response_model=List[QuestionSchema])
+@router.get("/", response_model=list[QuestionSchema])
 async def list_questions(
-    corpus_id: Optional[int] = None,
+    corpus_id: int | None = None,
     db: Session = Depends(get_db)
 ):
     """List questions, optionally filtered by corpus"""
@@ -59,7 +64,7 @@ async def list_questions(
     query = db.query(Question)
     if corpus_id:
         query = query.filter(Question.corpus_id == corpus_id)
-    
+
     questions = query.all()
     logger.info(f"Found {len(questions)} questions")
     return questions
@@ -84,17 +89,17 @@ async def delete_question(question_id: int, db: Session = Depends(get_db)):
     if not question:
         logger.error(f"Question not found with id: {question_id}")
         raise HTTPException(status_code=404, detail="Question not found")
-    
+
     try:
         db.delete(question)
         db.commit()
         logger.info(f"Successfully deleted question with id: {question_id}")
         return {"message": "Question deleted successfully"}
-    
+
     except Exception as e:
-        logger.error(f"Error deleting question: {str(e)}")
+        logger.error(f"Error deleting question: {e!s}")
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/generate")
@@ -105,7 +110,7 @@ async def generate_questions(
     """Generate questions for a corpus using AI"""
     logger.info(f"Starting question generation for corpus_id: {request.corpus_id}")
     logger.info(f"Request parameters: model_provider={request.model_provider}, model_name={request.model_name}, num_questions={request.num_questions}")
-    
+
     try:
         # Verify corpus exists
         logger.debug(f"Verifying corpus exists with id: {request.corpus_id}")
@@ -113,15 +118,15 @@ async def generate_questions(
         if not corpus:
             logger.error(f"Corpus not found with id: {request.corpus_id}")
             raise HTTPException(status_code=404, detail="Corpus not found")
-        
+
         logger.info(f"Found corpus: {corpus.name}")
-        
+
         # Get corpus content
         logger.debug("Fetching corpus content")
         corpus_content_response = await get_corpus_content(request.corpus_id, db)
         corpus_text = corpus_content_response["content"]
         logger.info(f"Retrieved corpus content, length: {len(corpus_text)} characters")
-        
+
         # Initialize question generator
         logger.debug(f"Initializing QuestionGeneratorService with provider={request.model_provider}, model={request.model_name}")
         generator = QuestionGeneratorService(
@@ -129,13 +134,13 @@ async def generate_questions(
             llm_model=request.model_name
         )
         logger.info("QuestionGeneratorService initialized successfully")
-        
+
         # Generate questions
         logger.info(f"Starting question generation for {request.num_questions} questions")
         questions = await generator.generate_questions_from_corpus(
             db, request.corpus_id, corpus_text, request.num_questions
         )
-        
+
         logger.info(f"Successfully generated {len(questions)} questions")
         return {
             "message": f"Generated {len(questions)} questions successfully",
@@ -149,10 +154,10 @@ async def generate_questions(
                 for q in questions
             ]
         }
-    
+
     except Exception as e:
-        logger.error(f"Error in generate_questions: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error(f"Error in generate_questions: {e!s}", exc_info=True)
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.post("/generate-by-topic")
@@ -163,7 +168,7 @@ async def generate_questions_by_topic(
     """Generate questions focused on specific topics"""
     logger.info(f"Starting topic-based question generation for corpus_id: {request.corpus_id}")
     logger.info(f"Topics: {request.topics}, questions_per_topic: {request.questions_per_topic}")
-    
+
     try:
         # Verify corpus exists
         logger.debug(f"Verifying corpus exists with id: {request.corpus_id}")
@@ -171,15 +176,15 @@ async def generate_questions_by_topic(
         if not corpus:
             logger.error(f"Corpus not found with id: {request.corpus_id}")
             raise HTTPException(status_code=404, detail="Corpus not found")
-        
+
         logger.info(f"Found corpus: {corpus.name}")
-        
+
         # Get corpus content
         logger.debug("Fetching corpus content")
         corpus_content_response = await get_corpus_content(request.corpus_id, db)
         corpus_text = corpus_content_response["content"]
         logger.info(f"Retrieved corpus content, length: {len(corpus_text)} characters")
-        
+
         # Initialize question generator
         logger.debug(f"Initializing QuestionGeneratorService with provider={request.model_provider}, model={request.model_name}")
         generator = QuestionGeneratorService(
@@ -187,21 +192,21 @@ async def generate_questions_by_topic(
             llm_model=request.model_name
         )
         logger.info("QuestionGeneratorService initialized successfully")
-        
+
         # Generate questions by topic
         logger.info(f"Starting topic-based question generation for {len(request.topics)} topics")
         qa_pairs = await generator.generate_questions_by_topic(
             corpus_text, request.topics, request.questions_per_topic
         )
         logger.info(f"Generated {len(qa_pairs)} question-answer pairs")
-        
+
         # Save questions to database
         logger.debug("Saving questions to database")
         saved_questions = await generator.save_questions_to_database(
             db, request.corpus_id, qa_pairs
         )
         logger.info(f"Successfully saved {len(saved_questions)} questions to database")
-        
+
         return {
             "message": f"Generated {len(saved_questions)} questions for {len(request.topics)} topics",
             "topics": request.topics,
@@ -215,10 +220,10 @@ async def generate_questions_by_topic(
                 for q in saved_questions
             ]
         }
-    
+
     except Exception as e:
-        logger.error(f"Error in generate_questions_by_topic: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error(f"Error in generate_questions_by_topic: {e!s}", exc_info=True)
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.get("/corpus/{corpus_id}/count")
@@ -235,15 +240,15 @@ async def get_question_types(corpus_id: int, db: Session = Depends(get_db)):
     """Get statistics about question types for a corpus"""
     logger.info(f"Getting question type statistics for corpus_id: {corpus_id}")
     questions = db.query(Question).filter(Question.corpus_id == corpus_id).all()
-    
+
     # Count by generation method
     manual_count = sum(1 for q in questions if str(q.generated_by) == "manual")
     ai_count = sum(1 for q in questions if str(q.generated_by) == "ai")
-    
+
     logger.info(f"Corpus {corpus_id}: {len(questions)} total questions, {manual_count} manual, {ai_count} AI-generated")
     return {
         "corpus_id": corpus_id,
         "total_questions": len(questions),
         "manual_questions": manual_count,
         "ai_generated_questions": ai_count
-    } 
+    }

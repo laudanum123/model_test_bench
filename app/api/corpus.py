@@ -1,13 +1,27 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
-from sqlalchemy.orm import Session
-from typing import List, Optional, cast
-import aiofiles
-import os
 import logging
-from datasets import load_dataset, Dataset, DatasetDict, IterableDataset, IterableDatasetDict, get_dataset_config_names, get_dataset_split_names, get_dataset_infos
-from app.database import get_db, Corpus
-from app.models.schemas import CorpusCreate, Corpus as CorpusSchema, HuggingFaceCorpusRequest
-from app.typing_helpers.vector_store_protocols import DatasetItem
+import os
+from typing import TYPE_CHECKING, cast
+
+import aiofiles
+from datasets import (
+    Dataset,
+    DatasetDict,
+    IterableDataset,
+    IterableDatasetDict,
+    get_dataset_config_names,
+    get_dataset_infos,
+    get_dataset_split_names,
+    load_dataset,
+)
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from sqlalchemy.orm import Session
+
+from app.database import Corpus, get_db
+from app.models.schemas import Corpus as CorpusSchema
+from app.models.schemas import CorpusCreate, HuggingFaceCorpusRequest
+
+if TYPE_CHECKING:
+    from app.typing_helpers.vector_store_protocols import DatasetItem
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -22,45 +36,45 @@ async def get_huggingface_dataset_metadata(dataset_name: str):
     try:
         # Get available configs
         config_names = get_dataset_config_names(dataset_name)
-        
+
         # If no configs (single config dataset), use None
         if not config_names:
             config_names = [None]
-        
+
         metadata = {
             "dataset_name": dataset_name,
             "configs": [],
             "default_config": config_names[0] if config_names else None
         }
-        
+
         # Get dataset infos for metadata
         try:
             dataset_infos = get_dataset_infos(dataset_name)
         except Exception as e:
             print(f"Warning: Could not get dataset infos: {e}")
             dataset_infos = {}
-        
+
         for config_name in config_names:
             config_data = {"name": config_name, "splits": [], "columns": []}
-            
+
             try:
                 # Get splits for this config
                 if config_name:
                     split_names = get_dataset_split_names(dataset_name, config_name)
                 else:
                     split_names = get_dataset_split_names(dataset_name)
-                
+
                 config_data["splits"] = split_names
-                
+
                 # Get columns from dataset info if available
                 if dataset_infos and config_name in dataset_infos:
                     info = dataset_infos[config_name]
-                    if hasattr(info, 'features') and info.features:
+                    if hasattr(info, "features") and info.features:
                         config_data["columns"] = list(info.features.keys())
                 elif dataset_infos and len(dataset_infos) == 1:
                     # Single config dataset
-                    info = list(dataset_infos.values())[0]
-                    if hasattr(info, 'features') and info.features:
+                    info = next(iter(dataset_infos.values()))
+                    if hasattr(info, "features") and info.features:
                         config_data["columns"] = list(info.features.keys())
                 else:
                     # Fallback: try to get columns from first split (but don't download full dataset)
@@ -69,38 +83,38 @@ async def get_huggingface_dataset_metadata(dataset_name: str):
                             # Load just the first sample to get column names
                             dataset = load_dataset(dataset_name, config_name, split=split_names[0] if split_names else "train", streaming=True)
                             # Get first item to see structure
-                            first_item = cast(DatasetItem, next(iter(dataset)))
-                            if hasattr(first_item, 'keys'):
+                            first_item = cast("DatasetItem", next(iter(dataset)))
+                            if hasattr(first_item, "keys"):
                                 config_data["columns"] = list(first_item.keys())
                             else:
                                 # For streaming datasets, try to get features safely
-                                features = getattr(dataset, 'features', None)
+                                features = getattr(dataset, "features", None)
                                 config_data["columns"] = list(features.keys()) if features else ["text"]
                         else:
                             dataset = load_dataset(dataset_name, split=split_names[0] if split_names else "train", streaming=True)
-                            first_item = cast(DatasetItem, next(iter(dataset)))
-                            if hasattr(first_item, 'keys'):
+                            first_item = cast("DatasetItem", next(iter(dataset)))
+                            if hasattr(first_item, "keys"):
                                 config_data["columns"] = list(first_item.keys())
                             else:
                                 # For streaming datasets, try to get features safely
-                                features = getattr(dataset, 'features', None)
+                                features = getattr(dataset, "features", None)
                                 config_data["columns"] = list(features.keys()) if features else ["text"]
                     except Exception as e:
                         print(f"Could not get columns for config {config_name}: {e}")
                         # Set default columns
                         config_data["columns"] = ["text"]
-                    
+
             except Exception as e:
                 # If we can't get info for this config, skip it
                 print(f"Error getting metadata for config {config_name}: {e}")
                 continue
-            
+
             metadata["configs"].append(config_data)
-        
+
         return metadata
-        
+
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error fetching dataset metadata: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Error fetching dataset metadata: {e!s}") from e
 
 
 @router.post("/", response_model=CorpusSchema)
@@ -122,10 +136,10 @@ async def create_corpus(
         return db_corpus
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
-@router.get("/", response_model=List[CorpusSchema])
+@router.get("/", response_model=list[CorpusSchema])
 async def list_corpora(db: Session = Depends(get_db)):
     """List all corpora"""
     corpora = db.query(Corpus).all()
@@ -144,7 +158,7 @@ async def get_corpus(corpus_id: int, db: Session = Depends(get_db)):
 @router.post("/upload")
 async def upload_corpus(
     name: str,
-    description: Optional[str] = None,
+    description: str | None = None,
     file: UploadFile = File(...),
     db: Session = Depends(get_db)
 ):
@@ -153,22 +167,22 @@ async def upload_corpus(
 
         if file.filename is None:
             raise HTTPException(status_code=400, detail="File name is required")
-        
+
         # Validate file type
-        if not file.filename.endswith(('.txt', '.md', '.csv')):
+        if not file.filename.endswith((".txt", ".md", ".csv")):
             raise HTTPException(status_code=400, detail="Only .txt, .md, and .csv files are supported")
-        
+
         # Read file content
         content = await file.read()
-        text_content = content.decode('utf-8')
-        
+        text_content = content.decode("utf-8")
+
         # Save file to data directory
         file_path = f"data/corpus_{name}_{file.filename}"
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
-        
-        async with aiofiles.open(file_path, 'wb') as f:
+
+        async with aiofiles.open(file_path, "wb") as f:
             await f.write(content)
-        
+
         # Create corpus record
         corpus = Corpus(
             name=name,
@@ -177,23 +191,23 @@ async def upload_corpus(
             source_config={
                 "file_path": file_path,
                 "file_size": len(content),
-                "file_type": file.filename.split('.')[-1]
+                "file_type": file.filename.split(".")[-1]
             }
         )
-        
+
         db.add(corpus)
         db.commit()
         db.refresh(corpus)
-        
+
         return {
             "id": corpus.id,
             "name": corpus.name,
             "message": f"Corpus uploaded successfully. Text length: {len(text_content)} characters"
         }
-    
+
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 @router.post("/huggingface")
 async def create_huggingface_corpus(
@@ -207,9 +221,9 @@ async def create_huggingface_corpus(
             dataset_raw = load_dataset(request.dataset_name, request.config_name, split=request.split)
         else:
             dataset_raw = load_dataset(request.dataset_name, split=request.split)
-        
+
         # 1️⃣ Reject streaming datasets early
-        if isinstance(dataset_raw, (IterableDataset, IterableDatasetDict)):
+        if isinstance(dataset_raw, IterableDataset | IterableDatasetDict):
             raise HTTPException(
                 status_code=400,
                 detail="Iterable (streaming) datasets don't expose their length; "
@@ -224,27 +238,27 @@ async def create_huggingface_corpus(
                     detail=f"Split '{request.split}' not found in dataset")
             dataset: Dataset = dataset_raw[request.split]
         else:
-            dataset = cast(Dataset, dataset_raw)
+            dataset = cast("Dataset", dataset_raw)
 
          # Extract text content
         column_names = dataset.column_names
         if column_names is None or request.text_column not in column_names:
             available_columns = ", ".join(column_names) if column_names else "none"
             raise HTTPException(
-                status_code=400, 
+                status_code=400,
                 detail=f"Column '{request.text_column}' not found in dataset. Available columns: {available_columns}"
             )
-        
+
         texts = dataset[request.text_column]
         combined_text = "\n\n".join([str(text) for text in texts if text])
-        
+
         # Save to file
         file_path = f"data/hf_corpus_{request.name}.txt"
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
-        
-        async with aiofiles.open(file_path, 'w', encoding='utf-8') as f:
+
+        async with aiofiles.open(file_path, "w", encoding="utf-8") as f:
             await f.write(combined_text)
-        
+
         # Create corpus record
         corpus = Corpus(
             name=request.name,
@@ -259,56 +273,56 @@ async def create_huggingface_corpus(
                 "num_samples": len(dataset)
             }
         )
-        
+
         db.add(corpus)
         db.commit()
         db.refresh(corpus)
-        
+
         return {
             "id": corpus.id,
             "name": corpus.name,
             "message": f"HuggingFace corpus created successfully. {len(dataset)} samples loaded."
         }
-    
+
     except ValueError as e:
         # Handle config name missing error specifically
         if "Config name is missing" in str(e):
             raise HTTPException(
                 status_code=400,
-                detail=f"This dataset requires a config name. Please specify one of the available configs. Error: {str(e)}"
-            )
+                detail=f"This dataset requires a config name. Please specify one of the available configs. Error: {e!s}"
+            ) from e
         else:
-            raise HTTPException(status_code=400, detail=str(e))
+            raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.get("/{corpus_id}/content")
 async def get_corpus_content(corpus_id: int, db: Session = Depends(get_db)):
     """Get the text content of a corpus"""
     logger.info(f"Retrieving content for corpus_id: {corpus_id}")
-    
+
     corpus = db.query(Corpus).filter(Corpus.id == corpus_id).first()
     if not corpus:
         logger.error(f"Corpus not found with id: {corpus_id}")
         raise HTTPException(status_code=404, detail="Corpus not found")
-    
+
     logger.info(f"Found corpus: {corpus.name}, source: {corpus.source}")
-    
+
     try:
         if corpus.source in ["upload", "huggingface"]:
             file_path = corpus.source_config.get("file_path")
             logger.debug(f"File path from source_config: {file_path}")
-            
+
             if not file_path or not os.path.exists(file_path):
                 logger.error(f"Corpus file not found at path: {file_path}")
                 raise HTTPException(status_code=404, detail="Corpus file not found")
-            
+
             logger.debug(f"Reading file from: {file_path}")
-            async with aiofiles.open(file_path, 'r', encoding='utf-8') as f:
+            async with aiofiles.open(file_path, encoding="utf-8") as f:
                 content = await f.read()
-            
+
             logger.info(f"Successfully read corpus content, length: {len(content)} characters")
             return {
                 "corpus_id": corpus_id,
@@ -318,10 +332,10 @@ async def get_corpus_content(corpus_id: int, db: Session = Depends(get_db)):
         else:
             logger.error(f"Unsupported corpus source: {corpus.source}")
             raise HTTPException(status_code=400, detail="Unsupported corpus source")
-    
+
     except Exception as e:
-        logger.error(f"Error retrieving corpus content: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error retrieving corpus content: {e!s}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.delete("/{corpus_id}")
@@ -330,19 +344,19 @@ async def delete_corpus(corpus_id: int, db: Session = Depends(get_db)):
     corpus = db.query(Corpus).filter(Corpus.id == corpus_id).first()
     if not corpus:
         raise HTTPException(status_code=404, detail="Corpus not found")
-    
+
     try:
         # Delete associated file if it exists
         if corpus.source_config is not None and "file_path" in corpus.source_config:
             file_path = corpus.source_config["file_path"]
             if file_path is not None and os.path.exists(str(file_path)):
                 os.remove(str(file_path))
-        
+
         db.delete(corpus)
         db.commit()
-        
+
         return {"message": "Corpus deleted successfully"}
-    
+
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e)) 
+        raise HTTPException(status_code=500, detail=str(e)) from e
