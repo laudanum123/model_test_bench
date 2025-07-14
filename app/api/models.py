@@ -1,3 +1,4 @@
+import concurrent.futures
 import logging
 import os
 import shutil
@@ -171,14 +172,14 @@ async def delete_model(model_id: int, db: Session = Depends(get_db)):
 
     try:
         # Remove local files if they exist
-        if model.local_path and os.path.exists(model.local_path):
+        if model.local_path is not None and os.path.exists(cast("str", model.local_path)):
             logger.debug(f"Removing local files at: {model.local_path}")
             try:
-                if os.path.isdir(model.local_path):
-                    shutil.rmtree(model.local_path)
+                if os.path.isdir(cast("str", model.local_path)):
+                    shutil.rmtree(cast("str", model.local_path))
                     logger.debug(f"Removed directory: {model.local_path}")
                 else:
-                    os.remove(model.local_path)
+                    os.remove(cast("str", model.local_path))
                     logger.debug(f"Removed file: {model.local_path}")
                 logger.info(f"Removed local files for model {model.huggingface_name}")
             except Exception as e:
@@ -210,45 +211,67 @@ async def get_model_info(model_id: int, db: Session = Depends(get_db)):
         logger.error(f"Model not found with id: {model_id}")
         raise HTTPException(status_code=404, detail="Model not found")
 
+    # Start with basic model information
+    model_details = {
+        "id": model.id,
+        "name": model.name,
+        "huggingface_name": model.huggingface_name,
+        "model_type": model.model_type,
+        "provider": model.provider,
+        "description": model.description,
+        "local_path": model.local_path,
+        "is_active": bool(model.is_active),
+        "created_at": model.created_at,
+        "huggingface_info": {
+            "tags": [],
+            "downloads": 0,
+            "likes": 0,
+            "last_modified": None,
+            "author": None,
+        }
+    }
+
     try:
         # Get model info from HuggingFace
         logger.debug(f"Fetching HuggingFace info for: {model.huggingface_name}")
-        info = model_info(model.huggingface_name)
+        info = model_info(cast("str", model.huggingface_name))
 
-        # Extract relevant information
-        model_details = {
-            "id": model.id,
-            "name": model.name,
-            "huggingface_name": model.huggingface_name,
-            "model_type": model.model_type,
-            "provider": model.provider,
-            "description": model.description,
-            "local_path": model.local_path,
-            "is_active": bool(model.is_active),
-            "created_at": model.created_at,
-            "huggingface_info": {
-                "tags": getattr(info, "tags", []),
-                "downloads": getattr(info, "downloads", 0),
-                "likes": getattr(info, "likes", 0),
-                "last_modified": getattr(info, "lastModified", None),
-                "author": getattr(info, "author", {}).get("name") if getattr(info, "author", None) else None,
-            }
+        # Update HuggingFace information
+        model_details["huggingface_info"] = {
+            "tags": getattr(info, "tags", []),
+            "downloads": getattr(info, "downloads", 0),
+            "likes": getattr(info, "likes", 0),
+            "last_modified": getattr(info, "lastModified", None),
+            "author": getattr(info, "author", {}).get("name") if getattr(info, "author", None) else None,
         }
-
-        # Add model-specific information
-        if model.model_type == "embedding":
-            logger.debug(f"Getting embedding model info for: {model.huggingface_name}")
-            model_details["embedding_info"] = _get_embedding_model_info(model.huggingface_name)
-        elif model.model_type == "reranker":
-            logger.debug(f"Getting reranker model info for: {model.huggingface_name}")
-            model_details["reranker_info"] = _get_reranker_model_info(model.huggingface_name)
-
-        logger.info(f"Successfully retrieved detailed info for model {model.name}")
-        return model_details
+        logger.debug(f"Successfully fetched HuggingFace info for {model.huggingface_name}")
 
     except Exception as e:
-        logger.error(f"Error getting model info: {e!s}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        logger.warning(f"Could not fetch HuggingFace info for {model.huggingface_name}: {e!s}")
+        # Continue with basic info, HuggingFace info will be empty/default
+
+    # Add model-specific information from local model_info if available
+    if model.model_info is not None:
+        logger.debug(f"Using cached model info for: {model.huggingface_name}")
+        if cast("str", model.model_type) == "embedding":
+            model_details["embedding_info"] = model.model_info
+        elif cast("str", model.model_type) == "reranker":
+            model_details["reranker_info"] = model.model_info
+    else:
+        # Try to get model info if not cached (but don't fail if it doesn't work)
+        try:
+            if cast("str", model.model_type) == "embedding":
+                logger.debug(f"Getting embedding model info for: {model.huggingface_name}")
+                model_details["embedding_info"] = _get_embedding_model_info(cast("str", model.huggingface_name))
+            elif cast("str", model.model_type) == "reranker":
+                logger.debug(f"Getting reranker model info for: {model.huggingface_name}")
+                model_details["reranker_info"] = _get_reranker_model_info(cast("str", model.huggingface_name))
+        except Exception as e:
+            logger.warning(f"Could not get model-specific info for {model.huggingface_name}: {e!s}")
+            # Continue without model-specific info
+
+    logger.info(f"Successfully retrieved detailed info for model {model.name}")
+    return model_details
 
 
 async def _download_model_task(model_id: int, huggingface_name: str, model_type: ModelType, db: Session):
@@ -363,7 +386,7 @@ def _determine_provider(model_type: ModelType, huggingface_name: str) -> str:
     return provider
 
 
-def _extract_model_info(huggingface_name: str, model_type: ModelType, local_path: Path) -> dict[str, Any]:
+def _extract_model_info(huggingface_name: str, model_type: ModelType, _local_path: Path) -> dict[str, Any]:
     """Extract model information like dimensions, etc."""
     logger.debug(f"Extracting model info for: {huggingface_name}, type: {model_type}")
 
@@ -387,7 +410,16 @@ def _get_embedding_model_info(huggingface_name: str) -> dict[str, Any]:
     logger.debug(f"Getting embedding model info for: {huggingface_name}")
 
     try:
-        model = SentenceTransformer(huggingface_name)
+        # Try to load the model with a timeout to avoid hanging
+
+        def load_model():
+            return SentenceTransformer(huggingface_name)
+
+        # Use ThreadPoolExecutor to avoid blocking the event loop
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(load_model)
+            model = future.result(timeout=30)  # 30 second timeout
+
         info = {
             "embedding_dimension": model.get_sentence_embedding_dimension(),
             "max_seq_length": model.max_seq_length,
@@ -395,8 +427,11 @@ def _get_embedding_model_info(huggingface_name: str) -> dict[str, Any]:
         }
         logger.debug(f"Embedding model info: {info}")
         return info
+    except concurrent.futures.TimeoutError:
+        logger.warning(f"Timeout while loading embedding model {huggingface_name}")
+        return {}
     except Exception as e:
-        logger.warning(f"Could not get embedding model info: {e!s}")
+        logger.warning(f"Could not get embedding model info for {huggingface_name}: {e!s}")
         return {}
 
 
@@ -405,8 +440,17 @@ def _get_reranker_model_info(huggingface_name: str) -> dict[str, Any]:
     logger.debug(f"Getting reranker model info for: {huggingface_name}")
 
     try:
-        tokenizer = AutoTokenizer.from_pretrained(huggingface_name)
-        model = AutoModelForSequenceClassification.from_pretrained(huggingface_name)
+        # Try to load the model with a timeout to avoid hanging
+
+        def load_model():
+            tokenizer = AutoTokenizer.from_pretrained(huggingface_name)
+            model = AutoModelForSequenceClassification.from_pretrained(huggingface_name)
+            return tokenizer, model
+
+        # Use ThreadPoolExecutor to avoid blocking the event loop
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(load_model)
+            tokenizer, model = future.result(timeout=30)  # 30 second timeout
 
         info = {
             "vocab_size": tokenizer.vocab_size,
@@ -416,6 +460,9 @@ def _get_reranker_model_info(huggingface_name: str) -> dict[str, Any]:
         }
         logger.debug(f"Reranker model info: {info}")
         return info
+    except concurrent.futures.TimeoutError:
+        logger.warning(f"Timeout while loading reranker model {huggingface_name}")
+        return {}
     except Exception as e:
-        logger.warning(f"Could not get reranker model info: {e!s}")
+        logger.warning(f"Could not get reranker model info for {huggingface_name}: {e!s}")
         return {}
