@@ -1,15 +1,17 @@
+import logging
+import os
+
+# Configure logging
+import pathlib
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-import os
-import logging
+
+from app.api import corpus, evaluation, questions
 from app.config import settings
 from app.database import create_tables
-from app.api import corpus, evaluation, questions
-
-# Configure logging
-import pathlib
 
 # Get the project root directory (where main.py is located)
 project_root = pathlib.Path(__file__).parent.parent
@@ -17,7 +19,7 @@ log_file_path = project_root / "app.log"
 
 logging.basicConfig(
     level=logging.DEBUG if settings.debug else logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
         logging.StreamHandler(),
         logging.FileHandler(log_file_path) if settings.debug else logging.NullHandler()
@@ -72,7 +74,7 @@ async def startup_event():
 
 
 @app.get("/")
-async def root(request: Request):
+async def root():
     """Root endpoint - redirect to dashboard"""
     from fastapi.responses import RedirectResponse
     return RedirectResponse(url="/dashboard")
@@ -117,8 +119,9 @@ async def health_check():
 @app.get("/favicon.ico")
 async def favicon():
     """Serve favicon"""
-    from fastapi.responses import FileResponse
     import os
+
+    from fastapi.responses import FileResponse
     favicon_path = os.path.join("app", "static", "favicon.ico")
     if os.path.exists(favicon_path):
         return FileResponse(favicon_path)
@@ -177,4 +180,4 @@ if __name__ == "__main__":
         host=settings.host,
         port=settings.port,
         reload=False
-    ) 
+    )

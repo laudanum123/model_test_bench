@@ -226,9 +226,10 @@
 
         function getStatusColor(status) {
             switch (status) {
+                case 'running': return 'primary';
                 case 'completed': return 'success';
-                case 'running': return 'warning';
                 case 'failed': return 'danger';
+                case 'cancelled': return 'warning';
                 default: return 'secondary';
             }
         }

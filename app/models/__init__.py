@@ -1,1 +1,1 @@
-# Pydantic models for the application 
+# Pydantic models for the application
