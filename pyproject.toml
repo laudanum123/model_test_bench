@@ -92,20 +92,6 @@ exclude_lines = [
 ]
 
 [tool.ruff]
-# Enable pycodestyle (`E`), Pyflakes (`F`), and isort (`I`) codes
-select = ["E", "F", "I", "W", "B", "C4", "UP", "N", "ARG", "SIM", "TCH", "TID", "Q", "RUF"]
-ignore = [
-    "E501",  # line too long, handled by formatter
-    "B008",  # do not perform function calls in argument defaults
-    "C901",  # too complex
-    "T201",  # print found
-    "T203",  # pprint found
-]
-
-# Allow fix for all enabled rules (when `--fix`) is provided.
-fixable = ["ALL"]
-unfixable = []
-
 # Exclude a variety of commonly ignored directories.
 exclude = [
     ".bzr",
@@ -137,6 +123,21 @@ indent-width = 4
 
 # Assume Python 3.12
 target-version = "py312"
+
+[tool.ruff.lint]
+# Enable pycodestyle (`E`), Pyflakes (`F`), and isort (`I`) codes
+select = ["E", "F", "I", "W", "B", "C4", "UP", "N", "ARG", "SIM", "TCH", "TID", "Q", "RUF"]
+ignore = [
+    "E501",  # line too long, handled by formatter
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+    "T201",  # print found
+    "T203",  # pprint found
+]
+
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = []
 
 [tool.ruff.format]
 # Like Black, use double quotes for strings.

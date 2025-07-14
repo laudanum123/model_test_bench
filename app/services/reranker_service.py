@@ -9,7 +9,7 @@ class RerankerService(ABC):
     """Abstract base class for reranker services"""
 
     @abstractmethod
-    async def rerank(self, query: str, documents: list[str], top_k: int = None) -> list[tuple[int, float]]:
+    async def rerank(self, query: str, documents: list[str], top_k: int | None = None) -> list[tuple[int, float]]:
         """Rerank documents based on relevance to query"""
         pass
 
@@ -34,12 +34,17 @@ class TransformersRerankerService(RerankerService):
             )
             self.model.eval()
         except Exception as e:
-            raise Exception(f"Failed to load reranker model {self.model_name}: {e!s}")
+            raise Exception(f"Failed to load reranker model {self.model_name}: {e!s}") from e
 
-    async def rerank(self, query: str, documents: list[str], top_k: int = None) -> list[tuple[int, float]]:
+    async def rerank(self, query: str, documents: list[str], top_k: int | None = None) -> list[tuple[int, float]]:
         try:
             if not documents:
                 return []
+
+            if self.tokenizer is None:
+                raise Exception("Tokenizer not loaded")
+            if self.model is None:
+                raise Exception("Model not loaded")
 
             # Prepare pairs for scoring
             pairs = []
@@ -75,7 +80,7 @@ class TransformersRerankerService(RerankerService):
 
             return scored_docs
         except Exception as e:
-            raise Exception(f"Reranker error: {e!s}")
+            raise Exception(f"Reranker error: {e!s}") from e
 
 
 class CrossEncoderRerankerService(RerankerService):
@@ -91,12 +96,15 @@ class CrossEncoderRerankerService(RerankerService):
         try:
             self.model = CrossEncoder(self.model_name)
         except Exception as e:
-            raise Exception(f"Failed to load cross-encoder model {self.model_name}: {e!s}")
+            raise Exception(f"Failed to load cross-encoder model {self.model_name}: {e!s}") from e
 
-    async def rerank(self, query: str, documents: list[str], top_k: int = None) -> list[tuple[int, float]]:
+    async def rerank(self, query: str, documents: list[str], top_k: int | None = None) -> list[tuple[int, float]]:
         try:
             if not documents:
                 return []
+
+            if self.model is None:
+                raise Exception("Model not loaded")
 
             # Prepare pairs for scoring
             pairs = [[query, doc] for doc in documents]
@@ -113,7 +121,7 @@ class CrossEncoderRerankerService(RerankerService):
 
             return scored_docs
         except Exception as e:
-            raise Exception(f"Cross-encoder reranker error: {e!s}")
+            raise Exception(f"Cross-encoder reranker error: {e!s}") from e
 
 
 class RerankerServiceFactory:
