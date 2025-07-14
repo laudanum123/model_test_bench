@@ -28,6 +28,21 @@ class Corpus(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+class ModelCatalogue(Base):
+    __tablename__ = "model_catalogue"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False, unique=True)
+    model_type = Column(String, nullable=False)  # "embedding", "reranker"
+    provider = Column(String, nullable=False)  # "sentence_transformers", "transformers", "openai"
+    huggingface_name = Column(String, nullable=False, unique=True)
+    description = Column(Text)
+    model_info = Column(JSON)  # Additional model information (dimensions, etc.)
+    local_path = Column(String)  # Local path where model is stored
+    is_active = Column(Integer, default=1)  # 1 for active, 0 for inactive
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 class Question(Base):
     __tablename__ = "questions"
 
