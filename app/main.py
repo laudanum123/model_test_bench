@@ -3,6 +3,8 @@ import os
 
 # Configure logging
 import pathlib
+import sys
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,8 +20,6 @@ project_root = pathlib.Path(__file__).parent.parent
 log_file_path = project_root / "app.log"
 
 # Configure logging with proper encoding for Windows
-import sys
-
 # Create handlers with proper encoding
 stream_handler = logging.StreamHandler(sys.stdout)
 stream_handler.setLevel(logging.DEBUG if settings.debug else logging.INFO)
@@ -48,11 +48,28 @@ logger = logging.getLogger(__name__)
 logger.info(f"Debug mode: {settings.debug}")
 logger.info(f"Log file path: {log_file_path}")
 
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Lifespan event handler for FastAPI application"""
+    # Startup
+    logger.info("Starting application...")
+    # Create database tables
+    create_tables()
+    logger.info(f"[STARTED] {settings.app_name} started successfully!")
+
+    yield
+
+    # Shutdown
+    logger.info("Shutting down application...")
+
+
 # Create FastAPI app
 app = FastAPI(
     title=settings.app_name,
     description="A comprehensive web application for evaluating different LLM provider stacks",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # Add CORS middleware
@@ -78,15 +95,6 @@ templates = Jinja2Templates(directory=templates_dir)
 static_dir = "app/static"
 os.makedirs(static_dir, exist_ok=True)
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
-
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize the application on startup"""
-    logger.info("Starting application...")
-    # Create database tables
-    create_tables()
-    logger.info(f"[STARTED] {settings.app_name} started successfully!")
 
 
 @app.get("/")
