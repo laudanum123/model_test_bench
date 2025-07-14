@@ -87,8 +87,23 @@ class EvaluationRunCreate(EvaluationRunBase):
     pass
 
 
-class EvaluationRun(EvaluationRunBase):
+class EvaluationRun(BaseModel):
     id: int
+    name: str
+    description: str | None
+    corpus_id: int
+
+    # Stack Configuration - individual fields to match database model
+    llm_provider: str
+    llm_model: str
+    embedding_provider: str
+    embedding_model: str
+    reranker_provider: str | None = None
+    reranker_model: str | None = None
+    vector_store: str
+    retrieval_strategy: str
+
+    # Results
     total_questions: int
     correct_answers: int
     accuracy: float

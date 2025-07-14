@@ -93,6 +93,52 @@ async def run_evaluation(
     return {"message": "Evaluation started", "evaluation_id": evaluation_id}
 
 
+@router.post("/{evaluation_id}/cancel")
+async def cancel_evaluation(evaluation_id: int, db: Session = Depends(get_db)):
+    """Cancel a running evaluation"""
+    evaluation = db.query(EvaluationRun).filter(EvaluationRun.id == evaluation_id).first()
+    if not evaluation:
+        raise HTTPException(status_code=404, detail="Evaluation run not found")
+
+    if str(evaluation.status) != "running":
+        raise HTTPException(status_code=400, detail="Only running evaluations can be cancelled")
+
+    # Update status to cancelled
+    db.query(EvaluationRun).filter(EvaluationRun.id == evaluation_id).update({
+        "status": "cancelled",
+        "completed_at": datetime.utcnow()
+    })
+    db.commit()
+
+    return {"message": "Evaluation cancelled", "evaluation_id": evaluation_id}
+
+
+@router.delete("/{evaluation_id}")
+async def delete_evaluation(evaluation_id: int, db: Session = Depends(get_db)):
+    """Delete an evaluation run and all its results"""
+    evaluation = db.query(EvaluationRun).filter(EvaluationRun.id == evaluation_id).first()
+    if not evaluation:
+        raise HTTPException(status_code=404, detail="Evaluation run not found")
+
+    if str(evaluation.status) == "running":
+        raise HTTPException(status_code=400, detail="Cannot delete a running evaluation. Cancel it first.")
+
+    try:
+        # Delete all evaluation results first (due to foreign key constraint)
+        db.query(EvaluationResult).filter(
+            EvaluationResult.evaluation_run_id == evaluation_id
+        ).delete()
+
+        # Delete the evaluation run
+        db.query(EvaluationRun).filter(EvaluationRun.id == evaluation_id).delete()
+        db.commit()
+
+        return {"message": "Evaluation deleted successfully", "evaluation_id": evaluation_id}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error deleting evaluation: {e!s}") from e
+
+
 async def run_evaluation_task(evaluation_id: int, db: Session):
     """Background task to run the evaluation"""
     try:
@@ -140,7 +186,13 @@ async def run_evaluation_task(evaluation_id: int, db: Session):
         total_relevance_score = 0
         total_retrieval_score = 0
 
-        for question in questions:
+        for _, question in enumerate(questions):
+            # Check if evaluation has been cancelled
+            current_evaluation = db.query(EvaluationRun).filter(EvaluationRun.id == evaluation_id).first()
+            if current_evaluation and str(current_evaluation.status) == "cancelled":
+                print(f"Evaluation {evaluation_id} was cancelled")
+                return
+
             try:
                 # Retrieve relevant documents
                 retrieved_docs = await retrieval_service.retrieve(str(question.question_text), top_k=5)
@@ -174,6 +226,12 @@ async def run_evaluation_task(evaluation_id: int, db: Session):
             except Exception as e:
                 print(f"Error processing question {question.id}: {e!s}")
                 continue
+
+        # Final check for cancellation before updating final results
+        current_evaluation = db.query(EvaluationRun).filter(EvaluationRun.id == evaluation_id).first()
+        if current_evaluation and str(current_evaluation.status) == "cancelled":
+            print(f"Evaluation {evaluation_id} was cancelled before finalizing results")
+            return
 
         # Update evaluation run with results
         db.query(EvaluationRun).filter(EvaluationRun.id == evaluation_id).update({
