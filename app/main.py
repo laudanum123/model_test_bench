@@ -17,13 +17,29 @@ from app.database import create_tables
 project_root = pathlib.Path(__file__).parent.parent
 log_file_path = project_root / "app.log"
 
+# Configure logging with proper encoding for Windows
+import sys
+
+# Create handlers with proper encoding
+stream_handler = logging.StreamHandler(sys.stdout)
+stream_handler.setLevel(logging.DEBUG if settings.debug else logging.INFO)
+
+# Set encoding for file handler if debug mode is enabled
+if settings.debug:
+    file_handler = logging.FileHandler(log_file_path, encoding="utf-8")
+    file_handler.setLevel(logging.DEBUG)
+else:
+    file_handler = logging.NullHandler()
+
+# Create formatter
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+stream_handler.setFormatter(formatter)
+file_handler.setFormatter(formatter)
+
+# Configure root logger
 logging.basicConfig(
     level=logging.DEBUG if settings.debug else logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler(log_file_path) if settings.debug else logging.NullHandler()
-    ]
+    handlers=[stream_handler, file_handler]
 )
 
 logger = logging.getLogger(__name__)
@@ -70,7 +86,7 @@ async def startup_event():
     logger.info("Starting application...")
     # Create database tables
     create_tables()
-    logger.info(f"🚀 {settings.app_name} started successfully!")
+    logger.info(f"[STARTED] {settings.app_name} started successfully!")
 
 
 @app.get("/")
