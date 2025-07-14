@@ -441,7 +441,7 @@ async function showModelInfo(modelId) {
             </div>
         `;
         
-        if (model.embedding_info) {
+        if (model.embedding_info && Object.keys(model.embedding_info).length > 0) {
             infoHtml += `
                 <div class="mt-3">
                     <h6>Embedding Model Details</h6>
@@ -453,7 +453,7 @@ async function showModelInfo(modelId) {
             `;
         }
         
-        if (model.reranker_info) {
+        if (model.reranker_info && Object.keys(model.reranker_info).length > 0) {
             infoHtml += `
                 <div class="mt-3">
                     <h6>Reranker Model Details</h6>
@@ -466,6 +466,19 @@ async function showModelInfo(modelId) {
             `;
         }
         
+        // Add note if some information is missing
+        if ((!model.embedding_info || Object.keys(model.embedding_info).length === 0) && 
+            (!model.reranker_info || Object.keys(model.reranker_info).length === 0)) {
+            infoHtml += `
+                <div class="mt-3">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Model-specific details are not available. This information is typically loaded when the model is downloaded.
+                    </div>
+                </div>
+            `;
+        }
+        
         document.getElementById('modelInfoContent').innerHTML = infoHtml;
         
         const modal = new bootstrap.Modal(document.getElementById('modelInfoModal'));
@@ -473,7 +486,8 @@ async function showModelInfo(modelId) {
         
     } catch (error) {
         console.error('Error loading model info:', error);
-        showAlert('Error loading model information', 'danger');
+        const errorMessage = error.response?.data?.detail || 'Error loading model information';
+        showAlert(errorMessage, 'danger');
     }
 }
 

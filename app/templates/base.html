@@ -240,7 +240,7 @@
         // Load available models on page load
         async function loadAvailableModels() {
             try {
-                const response = await axios.get('/api/models');
+                const response = await axios.get('/evaluation/models');
                 availableModels = response.data;
             } catch (error) {
                 console.error('Error loading models:', error);
