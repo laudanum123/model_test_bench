@@ -75,7 +75,14 @@ class SentenceTransformersService(EmbeddingService):
     def _load_model(self):
         """Load the sentence transformer model"""
         try:
-            self.model = SentenceTransformer(self.model_name)
+            # Check if model_name is a local path
+            import os
+            if os.path.exists(self.model_name):
+                # Load from local path
+                self.model = SentenceTransformer(self.model_name)
+            else:
+                # Load from HuggingFace Hub
+                self.model = SentenceTransformer(self.model_name)
         except Exception as e:
             raise Exception(f"Failed to load model {self.model_name}: {e!s}") from e
 

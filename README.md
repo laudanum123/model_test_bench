@@ -13,6 +13,33 @@ A comprehensive web application for evaluating different LLM provider stacks wit
 - **Question Generation**: Automatic synthetic Q&A dataset generation
 - **Answer Evaluation**: AI-powered judge models for answer quality assessment
 - **Result Storage**: Persistent storage of all test runs and evaluations
+- **Model Catalogue**: Manage and download embedding and reranker models from HuggingFace
+
+## Model Catalogue
+
+The Model Catalogue feature allows you to:
+
+- **Download Models**: Add embedding and reranker models from HuggingFace Hub
+- **Local Storage**: Models are downloaded and stored locally for faster access
+- **Model Information**: View detailed information about each model including dimensions, vocabulary size, etc.
+- **Model Management**: Delete models you no longer need
+- **Automatic Integration**: Downloaded models are automatically available in evaluations
+
+### Adding Models
+
+1. Navigate to the **Model Catalogue** page
+2. Click **Add Model**
+3. Select the model type (Embedding or Reranker)
+4. Enter the HuggingFace model name (e.g., `sentence-transformers/all-MiniLM-L6-v2`)
+5. Optionally provide a custom display name and description
+6. Click **Download Model**
+
+The model will be downloaded in the background and added to your catalogue. Once downloaded, it will be available for use in evaluations.
+
+### Model Types
+
+- **Embedding Models**: Used for generating text embeddings (e.g., `sentence-transformers/all-MiniLM-L6-v2`)
+- **Reranker Models**: Used for reranking retrieved documents (e.g., `BAAI/bge-reranker-v2-m3`)
 
 ## Quick Start
 
@@ -34,6 +61,11 @@ A comprehensive web application for evaluating different LLM provider stacks wit
 
 4. **Access the web interface**:
    Open http://localhost:8000 in your browser
+
+5. **Add some models**:
+   - Go to **Model Catalogue**
+   - Add embedding models like `sentence-transformers/all-MiniLM-L6-v2`
+   - Add reranker models like `BAAI/bge-reranker-v2-m3`
 
 ## Project Structure
 

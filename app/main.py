@@ -3,13 +3,15 @@ import os
 
 # Configure logging
 import pathlib
+import sys
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from app.api import corpus, evaluation, questions
+from app.api import corpus, evaluation, models, questions
 from app.config import settings
 from app.database import create_tables
 
@@ -18,8 +20,6 @@ project_root = pathlib.Path(__file__).parent.parent
 log_file_path = project_root / "app.log"
 
 # Configure logging with proper encoding for Windows
-import sys
-
 # Create handlers with proper encoding
 stream_handler = logging.StreamHandler(sys.stdout)
 stream_handler.setLevel(logging.DEBUG if settings.debug else logging.INFO)
@@ -48,11 +48,28 @@ logger = logging.getLogger(__name__)
 logger.info(f"Debug mode: {settings.debug}")
 logger.info(f"Log file path: {log_file_path}")
 
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Lifespan event handler for FastAPI application"""
+    # Startup
+    logger.info("Starting application...")
+    # Create database tables
+    create_tables()
+    logger.info(f"[STARTED] {settings.app_name} started successfully!")
+
+    yield
+
+    # Shutdown
+    logger.info("Shutting down application...")
+
+
 # Create FastAPI app
 app = FastAPI(
     title=settings.app_name,
     description="A comprehensive web application for evaluating different LLM provider stacks",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # Add CORS middleware
@@ -68,6 +85,7 @@ app.add_middleware(
 app.include_router(corpus.router)
 app.include_router(evaluation.router)
 app.include_router(questions.router)
+app.include_router(models.router)
 
 # Create templates directory and mount static files
 templates_dir = "app/templates"
@@ -78,15 +96,6 @@ templates = Jinja2Templates(directory=templates_dir)
 static_dir = "app/static"
 os.makedirs(static_dir, exist_ok=True)
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
-
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize the application on startup"""
-    logger.info("Starting application...")
-    # Create database tables
-    create_tables()
-    logger.info(f"[STARTED] {settings.app_name} started successfully!")
 
 
 @app.get("/")
@@ -126,6 +135,12 @@ async def new_evaluation_page(request: Request):
     return templates.TemplateResponse("new_evaluation.html", {"request": request, "active_page": "new-evaluation"})
 
 
+@app.get("/models")
+async def models_page(request: Request):
+    """Model catalogue page"""
+    return templates.TemplateResponse("models.html", {"request": request, "active_page": "models"})
+
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
@@ -146,47 +161,7 @@ async def favicon():
         return Response(status_code=404)
 
 
-@app.get("/api/models")
-async def get_available_models():
-    """Get available models for different providers"""
-    return {
-        "llm_providers": {
-            "openai": [
-                "gpt-4.1",
-                "gpt-4",
-                "gpt-4-turbo-preview"
-            ],
-            "transformers": [
-                "microsoft/DialoGPT-medium",
-                "gpt2",
-                "EleutherAI/gpt-neo-125M"
-            ]
-        },
-        "embedding_providers": {
-            "openai": [
-                "text-embedding-ada-002"
-            ],
-            "sentence_transformers": [
-                "all-MiniLM-L6-v2",
-                "all-mpnet-base-v2",
-                "BAAI/bge-small-en-v1.5"
-            ]
-        },
-        "reranker_models": [
-            "BAAI/bge-reranker-v2-m3",
-            "cross-encoder/ms-marco-MiniLM-L-6-v2",
-            "cross-encoder/ms-marco-MiniLM-L-12-v2"
-        ],
-        "vector_stores": [
-            "chroma",
-            "faiss"
-        ],
-        "retrieval_strategies": [
-            "semantic",
-            "hybrid",
-            "bm25"
-        ]
-    }
+
 
 
 if __name__ == "__main__":

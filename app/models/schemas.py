@@ -26,6 +26,48 @@ class RetrievalStrategy(str, Enum):
     BM25 = "bm25"
 
 
+class ModelType(str, Enum):
+    EMBEDDING = "embedding"
+    RERANKER = "reranker"
+
+
+class ModelCatalogueBase(BaseModel):
+    name: str = Field(..., description="Display name for the model")
+    model_type: ModelType = Field(..., description="Type of model: embedding or reranker")
+    provider: str = Field(..., description="Provider: sentence_transformers, transformers, openai")
+    huggingface_name: str = Field(..., description="HuggingFace model name")
+    description: str | None = Field(None, description="Model description")
+    model_info: dict[str, Any] | None = Field(None, description="Additional model information")
+
+
+class ModelCatalogueCreate(ModelCatalogueBase):
+    pass
+
+
+class ModelCatalogue(ModelCatalogueBase):
+    id: int
+    local_path: str | None = None
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ModelDownloadRequest(BaseModel):
+    huggingface_name: str = Field(..., description="HuggingFace model name to download")
+    model_type: ModelType = Field(..., description="Type of model")
+    name: str | None = Field(None, description="Optional display name (defaults to huggingface_name)")
+    description: str | None = Field(None, description="Optional description")
+
+
+class ModelUpdateRequest(BaseModel):
+    name: str | None = Field(None, description="Display name")
+    description: str | None = Field(None, description="Model description")
+    is_active: bool | None = Field(None, description="Whether the model is active")
+
+
 class CorpusBase(BaseModel):
     name: str = Field(..., description="Name of the corpus")
     description: str | None = Field(None, description="Description of the corpus")

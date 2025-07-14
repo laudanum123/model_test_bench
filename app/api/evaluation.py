@@ -1,10 +1,18 @@
 from datetime import datetime
+from typing import cast
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.corpus import get_corpus_content
-from app.database import Corpus, EvaluationResult, EvaluationRun, Question, get_db
+from app.database import (
+    Corpus,
+    EvaluationResult,
+    EvaluationRun,
+    ModelCatalogue,
+    Question,
+    get_db,
+)
 from app.models.schemas import EvaluationResult as EvaluationResultSchema
 from app.models.schemas import EvaluationRun as EvaluationRunSchema
 from app.models.schemas import (
@@ -17,6 +25,78 @@ from app.services.llm_service import LLMServiceFactory
 from app.services.retrieval_service import RetrievalServiceFactory
 
 router = APIRouter(prefix="/evaluation", tags=["evaluation"])
+
+
+@router.get("/models")
+async def get_available_models():
+    """Get available models for different providers"""
+
+    import logging
+    logger = logging.getLogger("get_available_models")
+    logger.info("Called get_available_models endpoint")
+
+    from app.database import ModelCatalogue, get_db
+
+    # Get database session
+    db = next(get_db())
+    logger.debug("Database session created")
+
+    try:
+        # Get models from catalogue
+        logger.debug("Querying embedding models from catalogue")
+        embedding_models = db.query(ModelCatalogue).filter(
+            ModelCatalogue.model_type == "embedding",
+            ModelCatalogue.is_active == 1
+        ).all()
+        logger.debug(f"Found {len(embedding_models)} embedding models: {[m.huggingface_name for m in embedding_models]}")
+
+        logger.debug("Querying reranker models from catalogue")
+        reranker_models = db.query(ModelCatalogue).filter(
+            ModelCatalogue.model_type == "reranker",
+            ModelCatalogue.is_active == 1
+        ).all()
+        logger.debug(f"Found {len(reranker_models)} reranker models: {[m.huggingface_name for m in reranker_models]}")
+
+        # Format catalogue models
+        catalogue_embedding_models = [model.huggingface_name for model in embedding_models]
+        catalogue_reranker_models = [model.huggingface_name for model in reranker_models]
+        logger.debug(f"catalogue_embedding_models: {catalogue_embedding_models}")
+        logger.debug(f"catalogue_reranker_models: {catalogue_reranker_models}")
+
+        result = {
+            "llm_providers": {
+                "openai": [
+                    "gpt-4.1",
+                ],
+                "transformers": [
+                    "Empty"
+                ]
+            },
+            "embedding_providers": {
+                "openai": [
+                    "text-embedding-ada-002"
+                ],
+                "sentence_transformers": catalogue_embedding_models
+            },
+            "reranker_models": catalogue_reranker_models,
+            "vector_stores": [
+                "chroma",
+                "faiss"
+            ],
+            "retrieval_strategies": [
+                "semantic",
+                "hybrid",
+                "bm25"
+            ]
+        }
+        logger.info(f"Returning model catalogue: {result}")
+        return result
+    except Exception as e:
+        logger.error(f"Error in get_available_models: {e!s}", exc_info=True)
+        raise
+    finally:
+        db.close()
+        logger.debug("Database session closed")
 
 
 @router.post("/", response_model=EvaluationRunSchema)
@@ -160,17 +240,39 @@ async def run_evaluation_task(evaluation_id: int, db: Session):
         if not questions:
             raise Exception("No questions found for this corpus")
 
+        # Get model information from catalogue
+
+        # Look up embedding model
+        embedding_model_info = db.query(ModelCatalogue).filter(
+            ModelCatalogue.huggingface_name == evaluation.embedding_model,
+            ModelCatalogue.model_type == "embedding",
+            ModelCatalogue.is_active == 1
+        ).first()
+
+        # Look up reranker model if specified
+        reranker_model_info = None
+        if evaluation.reranker_model is not None:
+            reranker_model_info = db.query(ModelCatalogue).filter(
+                ModelCatalogue.huggingface_name == evaluation.reranker_model,
+                ModelCatalogue.model_type == "reranker",
+                ModelCatalogue.is_active == 1
+            ).first()
+
         # Initialize services
         llm_service = LLMServiceFactory.create_service(
             LLMProvider(evaluation.llm_provider), str(evaluation.llm_model)
         )
 
+        # Use local paths from catalogue if available, otherwise fall back to HuggingFace names
+        embedding_model_path = embedding_model_info.local_path if embedding_model_info else evaluation.embedding_model
+        reranker_model_path = reranker_model_info.local_path if reranker_model_info else evaluation.reranker_model
+
         retrieval_service = RetrievalServiceFactory.create_service(
             RetrievalStrategy(evaluation.retrieval_strategy),
             embedding_provider=evaluation.embedding_provider,
-            embedding_model=evaluation.embedding_model,
+            embedding_model=embedding_model_path,
             vector_store=evaluation.vector_store,
-            reranker_model=evaluation.reranker_model
+            reranker_model=reranker_model_path
         )
 
         evaluation_service = EvaluationService()
@@ -213,7 +315,7 @@ async def run_evaluation_task(evaluation_id: int, db: Session):
 
                 # Save evaluation result
                 await evaluation_service.save_evaluation_result(
-                    db, evaluation_id, Question(id=question.id), generated_answer, retrieved_docs, scores
+                    db, evaluation_id, Question(id=cast("int", question.id)), generated_answer, retrieved_docs, scores
                 )
 
                 # Update counters
