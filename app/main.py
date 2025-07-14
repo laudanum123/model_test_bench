@@ -161,71 +161,7 @@ async def favicon():
         return Response(status_code=404)
 
 
-@app.get("/api/models")
-async def get_available_models():
-    """Get available models for different providers"""
 
-    from app.database import ModelCatalogue, get_db
-
-    # Get database session
-    db = next(get_db())
-
-    try:
-        # Get models from catalogue
-        embedding_models = db.query(ModelCatalogue).filter(
-            ModelCatalogue.model_type == "embedding",
-            ModelCatalogue.is_active == 1
-        ).all()
-
-        reranker_models = db.query(ModelCatalogue).filter(
-            ModelCatalogue.model_type == "reranker",
-            ModelCatalogue.is_active == 1
-        ).all()
-
-        # Format catalogue models
-        catalogue_embedding_models = [model.huggingface_name for model in embedding_models]
-        catalogue_reranker_models = [model.huggingface_name for model in reranker_models]
-
-        return {
-            "llm_providers": {
-                "openai": [
-                    "gpt-4.1",
-                    "gpt-4",
-                    "gpt-4-turbo-preview"
-                ],
-                "transformers": [
-                    "microsoft/DialoGPT-medium",
-                    "gpt2",
-                    "EleutherAI/gpt-neo-125M"
-                ]
-            },
-            "embedding_providers": {
-                "openai": [
-                    "text-embedding-ada-002"
-                ],
-                "sentence_transformers": [
-                    "all-MiniLM-L6-v2",
-                    "all-mpnet-base-v2",
-                    "BAAI/bge-small-en-v1.5"
-                ] + catalogue_embedding_models
-            },
-            "reranker_models": [
-                "BAAI/bge-reranker-v2-m3",
-                "cross-encoder/ms-marco-MiniLM-L-6-v2",
-                "cross-encoder/ms-marco-MiniLM-L-12-v2"
-            ] + catalogue_reranker_models,
-            "vector_stores": [
-                "chroma",
-                "faiss"
-            ],
-            "retrieval_strategies": [
-                "semantic",
-                "hybrid",
-                "bm25"
-            ]
-        }
-    finally:
-        db.close()
 
 
 if __name__ == "__main__":

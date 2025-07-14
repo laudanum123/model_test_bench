@@ -27,6 +27,78 @@ from app.services.retrieval_service import RetrievalServiceFactory
 router = APIRouter(prefix="/evaluation", tags=["evaluation"])
 
 
+@router.get("/models")
+async def get_available_models():
+    """Get available models for different providers"""
+
+    import logging
+    logger = logging.getLogger("get_available_models")
+    logger.info("Called get_available_models endpoint")
+
+    from app.database import ModelCatalogue, get_db
+
+    # Get database session
+    db = next(get_db())
+    logger.debug("Database session created")
+
+    try:
+        # Get models from catalogue
+        logger.debug("Querying embedding models from catalogue")
+        embedding_models = db.query(ModelCatalogue).filter(
+            ModelCatalogue.model_type == "embedding",
+            ModelCatalogue.is_active == 1
+        ).all()
+        logger.debug(f"Found {len(embedding_models)} embedding models: {[m.huggingface_name for m in embedding_models]}")
+
+        logger.debug("Querying reranker models from catalogue")
+        reranker_models = db.query(ModelCatalogue).filter(
+            ModelCatalogue.model_type == "reranker",
+            ModelCatalogue.is_active == 1
+        ).all()
+        logger.debug(f"Found {len(reranker_models)} reranker models: {[m.huggingface_name for m in reranker_models]}")
+
+        # Format catalogue models
+        catalogue_embedding_models = [model.huggingface_name for model in embedding_models]
+        catalogue_reranker_models = [model.huggingface_name for model in reranker_models]
+        logger.debug(f"catalogue_embedding_models: {catalogue_embedding_models}")
+        logger.debug(f"catalogue_reranker_models: {catalogue_reranker_models}")
+
+        result = {
+            "llm_providers": {
+                "openai": [
+                    "gpt-4.1",
+                ],
+                "transformers": [
+                    "Empty"
+                ]
+            },
+            "embedding_providers": {
+                "openai": [
+                    "text-embedding-ada-002"
+                ],
+                "sentence_transformers": catalogue_embedding_models
+            },
+            "reranker_models": catalogue_reranker_models,
+            "vector_stores": [
+                "chroma",
+                "faiss"
+            ],
+            "retrieval_strategies": [
+                "semantic",
+                "hybrid",
+                "bm25"
+            ]
+        }
+        logger.info(f"Returning model catalogue: {result}")
+        return result
+    except Exception as e:
+        logger.error(f"Error in get_available_models: {e!s}", exc_info=True)
+        raise
+    finally:
+        db.close()
+        logger.debug("Database session closed")
+
+
 @router.post("/", response_model=EvaluationRunSchema)
 async def create_evaluation_run(
     evaluation: EvaluationRunCreate,
