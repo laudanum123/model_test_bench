@@ -1,0 +1,538 @@
+{% extends "base.html" %}
+
+{% block title %}Model Catalogue - Model Test Bench{% endblock %}
+
+{% block extra_css %}
+<style>
+    .model-card {
+        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        border: 1px solid #e9ecef;
+    }
+    
+    .model-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+    
+    .model-type-badge {
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    
+    .embedding-badge {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    
+    .reranker-badge {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    }
+    
+    .provider-badge {
+        background: #6c757d;
+        font-size: 0.7rem;
+    }
+    
+    .model-info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 0.5rem;
+        margin-top: 1rem;
+    }
+    
+    .info-item {
+        background: #f8f9fa;
+        padding: 0.5rem;
+        border-radius: 0.25rem;
+        text-align: center;
+    }
+    
+    .info-label {
+        font-size: 0.75rem;
+        color: #6c757d;
+        font-weight: 600;
+    }
+    
+    .info-value {
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: #495057;
+    }
+    
+    .download-progress {
+        display: none;
+    }
+    
+    .download-progress.show {
+        display: block;
+    }
+    
+    .section-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: #6c757d;
+    }
+    
+    .empty-state i {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0">
+                <i class="fas fa-cube me-2"></i>Model Catalogue
+            </h1>
+            <p class="text-muted mb-0">Manage your embedding and reranker models</p>
+        </div>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addModelModal">
+            <i class="fas fa-plus me-2"></i>Add Model
+        </button>
+    </div>
+
+    <!-- Embedding Models Section -->
+    <div class="section-header">
+        <h2 class="h5 mb-0">
+            <i class="fas fa-vector-square me-2"></i>Embedding Models
+        </h2>
+        <p class="mb-0 opacity-75">Models for generating text embeddings</p>
+    </div>
+    
+    <div id="embedding-models-container">
+        <div class="loading text-center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reranker Models Section -->
+    <div class="section-header">
+        <h2 class="h5 mb-0">
+            <i class="fas fa-sort-amount-up me-2"></i>Reranker Models
+        </h2>
+        <p class="mb-0 opacity-75">Models for reranking retrieved documents</p>
+    </div>
+    
+    <div id="reranker-models-container">
+        <div class="loading text-center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+<!-- Add Model Modal -->
+<div class="modal fade" id="addModelModal" tabindex="-1" aria-labelledby="addModelModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addModelModalLabel">
+                    <i class="fas fa-plus me-2"></i>Add New Model
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addModelForm">
+                    <div class="mb-3">
+                        <label for="modelType" class="form-label">Model Type *</label>
+                        <select class="form-select" id="modelType" name="modelType" required>
+                            <option value="">Select model type...</option>
+                            <option value="embedding">Embedding Model</option>
+                            <option value="reranker">Reranker Model</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="huggingfaceName" class="form-label">HuggingFace Model Name *</label>
+                        <input type="text" class="form-control" id="huggingfaceName" name="huggingfaceName" 
+                               placeholder="e.g., sentence-transformers/all-MiniLM-L6-v2" required>
+                        <div class="form-text">Enter the exact HuggingFace model name</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="displayName" class="form-label">Display Name</label>
+                        <input type="text" class="form-control" id="displayName" name="displayName" 
+                               placeholder="Optional custom name">
+                        <div class="form-text">Leave empty to use the HuggingFace name</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="3" 
+                                  placeholder="Optional description of the model"></textarea>
+                    </div>
+                </form>
+                
+                <div class="download-progress mt-3">
+                    <div class="alert alert-info">
+                        <div class="d-flex align-items-center">
+                            <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                            <span>Downloading model... This may take a few minutes.</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="downloadModelBtn">
+                    <i class="fas fa-download me-2"></i>Download Model
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Model Info Modal -->
+<div class="modal fade" id="modelInfoModal" tabindex="-1" aria-labelledby="modelInfoModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modelInfoModalLabel">
+                    <i class="fas fa-info-circle me-2"></i>Model Information
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="modelInfoContent">
+                <!-- Content will be loaded dynamically -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModelModal" tabindex="-1" aria-labelledby="deleteModelModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteModelModalLabel">
+                    <i class="fas fa-exclamation-triangle me-2 text-warning"></i>Delete Model
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete the model <strong id="deleteModelName"></strong>?</p>
+                <p class="text-muted">This will remove the model from the catalogue and delete all local files.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
+                    <i class="fas fa-trash me-2"></i>Delete Model
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentDeleteModelId = null;
+
+// Load models on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadModels();
+});
+
+async function loadModels() {
+    try {
+        // Load embedding models
+        const embeddingResponse = await axios.get('/api/models?model_type=embedding');
+        renderModels('embedding-models-container', embeddingResponse.data, 'embedding');
+        
+        // Load reranker models
+        const rerankerResponse = await axios.get('/api/models?model_type=reranker');
+        renderModels('reranker-models-container', rerankerResponse.data, 'reranker');
+        
+    } catch (error) {
+        console.error('Error loading models:', error);
+        showAlert('Error loading models', 'danger');
+    }
+}
+
+function renderModels(containerId, models, modelType) {
+    const container = document.getElementById(containerId);
+    
+    if (models.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-${modelType === 'embedding' ? 'vector-square' : 'sort-amount-up'}"></i>
+                <h4>No ${modelType} models found</h4>
+                <p>Add your first ${modelType} model to get started</p>
+            </div>
+        `;
+        return;
+    }
+    
+    const modelsHtml = models.map(model => createModelCard(model, modelType)).join('');
+    container.innerHTML = `
+        <div class="row">
+            ${modelsHtml}
+        </div>
+    `;
+}
+
+function createModelCard(model, modelType) {
+    const badgeClass = modelType === 'embedding' ? 'embedding-badge' : 'reranker-badge';
+    const icon = modelType === 'embedding' ? 'vector-square' : 'sort-amount-up';
+    
+    let infoHtml = '';
+    if (model.model_info) {
+        const infoItems = [];
+        if (model.model_info.embedding_dimension) {
+            infoItems.push(`
+                <div class="info-item">
+                    <div class="info-label">Dimensions</div>
+                    <div class="info-value">${model.model_info.embedding_dimension}</div>
+                </div>
+            `);
+        }
+        if (model.model_info.max_seq_length) {
+            infoItems.push(`
+                <div class="info-item">
+                    <div class="info-label">Max Length</div>
+                    <div class="info-value">${model.model_info.max_seq_length}</div>
+                </div>
+            `);
+        }
+        if (model.model_info.vocab_size) {
+            infoItems.push(`
+                <div class="info-item">
+                    <div class="info-label">Vocab Size</div>
+                    <div class="info-value">${model.model_info.vocab_size.toLocaleString()}</div>
+                </div>
+            `);
+        }
+        if (model.model_info.num_labels) {
+            infoItems.push(`
+                <div class="info-item">
+                    <div class="info-label">Labels</div>
+                    <div class="info-value">${model.model_info.num_labels}</div>
+                </div>
+            `);
+        }
+        
+        if (infoItems.length > 0) {
+            infoHtml = `
+                <div class="model-info-grid">
+                    ${infoItems.join('')}
+                </div>
+            `;
+        }
+    }
+    
+    return `
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card model-card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h5 class="card-title mb-0">${model.name}</h5>
+                        <span class="badge ${badgeClass} model-type-badge">
+                            <i class="fas fa-${icon} me-1"></i>${modelType}
+                        </span>
+                    </div>
+                    
+                    <span class="badge provider-badge mb-2">${model.provider}</span>
+                    
+                    <p class="card-text text-muted small mb-2">${model.huggingface_name}</p>
+                    
+                    ${model.description ? `<p class="card-text small">${model.description}</p>` : ''}
+                    
+                    ${infoHtml}
+                    
+                    <div class="mt-3">
+                        <button class="btn btn-sm btn-outline-info me-2" onclick="showModelInfo(${model.id})">
+                            <i class="fas fa-info-circle me-1"></i>Info
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteModel(${model.id}, '${model.name}')">
+                            <i class="fas fa-trash me-1"></i>Delete
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Download model functionality
+document.getElementById('downloadModelBtn').addEventListener('click', async function() {
+    const form = document.getElementById('addModelForm');
+    const formData = new FormData(form);
+    
+    const requestData = {
+        huggingface_name: formData.get('huggingfaceName'),
+        model_type: formData.get('modelType'),
+        name: formData.get('displayName') || null,
+        description: formData.get('description') || null
+    };
+    
+    try {
+        // Show progress
+        document.querySelector('.download-progress').classList.add('show');
+        document.getElementById('downloadModelBtn').disabled = true;
+        
+        const response = await axios.post('/api/models/download', requestData);
+        
+        showAlert('Model download started successfully!', 'success');
+        
+        // Close modal and reload models
+        const modal = bootstrap.Modal.getInstance(document.getElementById('addModelModal'));
+        modal.hide();
+        
+        // Wait a bit then reload to show the new model
+        setTimeout(loadModels, 2000);
+        
+    } catch (error) {
+        console.error('Error downloading model:', error);
+        showAlert(error.response?.data?.detail || 'Error downloading model', 'danger');
+    } finally {
+        document.querySelector('.download-progress').classList.remove('show');
+        document.getElementById('downloadModelBtn').disabled = false;
+    }
+});
+
+// Show model information
+async function showModelInfo(modelId) {
+    try {
+        const response = await axios.get(`/api/models/${modelId}/info`);
+        const model = response.data;
+        
+        let infoHtml = `
+            <div class="row">
+                <div class="col-md-6">
+                    <h6>Basic Information</h6>
+                    <ul class="list-unstyled">
+                        <li><strong>Name:</strong> ${model.name}</li>
+                        <li><strong>HuggingFace Name:</strong> ${model.huggingface_name}</li>
+                        <li><strong>Type:</strong> ${model.model_type}</li>
+                        <li><strong>Provider:</strong> ${model.provider}</li>
+                        <li><strong>Status:</strong> ${model.is_active ? 'Active' : 'Inactive'}</li>
+                        <li><strong>Added:</strong> ${new Date(model.created_at).toLocaleDateString()}</li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <h6>HuggingFace Information</h6>
+                    <ul class="list-unstyled">
+                        <li><strong>Downloads:</strong> ${model.huggingface_info.downloads?.toLocaleString() || 'N/A'}</li>
+                        <li><strong>Likes:</strong> ${model.huggingface_info.likes?.toLocaleString() || 'N/A'}</li>
+                        <li><strong>Author:</strong> ${model.huggingface_info.author || 'N/A'}</li>
+                        <li><strong>Last Modified:</strong> ${model.huggingface_info.last_modified ? new Date(model.huggingface_info.last_modified).toLocaleDateString() : 'N/A'}</li>
+                    </ul>
+                </div>
+            </div>
+        `;
+        
+        if (model.embedding_info) {
+            infoHtml += `
+                <div class="mt-3">
+                    <h6>Embedding Model Details</h6>
+                    <ul class="list-unstyled">
+                        <li><strong>Embedding Dimension:</strong> ${model.embedding_info.embedding_dimension || 'N/A'}</li>
+                        <li><strong>Max Sequence Length:</strong> ${model.embedding_info.max_seq_length || 'N/A'}</li>
+                    </ul>
+                </div>
+            `;
+        }
+        
+        if (model.reranker_info) {
+            infoHtml += `
+                <div class="mt-3">
+                    <h6>Reranker Model Details</h6>
+                    <ul class="list-unstyled">
+                        <li><strong>Vocabulary Size:</strong> ${model.reranker_info.vocab_size?.toLocaleString() || 'N/A'}</li>
+                        <li><strong>Max Length:</strong> ${model.reranker_info.max_length || 'N/A'}</li>
+                        <li><strong>Number of Labels:</strong> ${model.reranker_info.num_labels || 'N/A'}</li>
+                    </ul>
+                </div>
+            `;
+        }
+        
+        document.getElementById('modelInfoContent').innerHTML = infoHtml;
+        
+        const modal = new bootstrap.Modal(document.getElementById('modelInfoModal'));
+        modal.show();
+        
+    } catch (error) {
+        console.error('Error loading model info:', error);
+        showAlert('Error loading model information', 'danger');
+    }
+}
+
+// Delete model functionality
+function confirmDeleteModel(modelId, modelName) {
+    currentDeleteModelId = modelId;
+    document.getElementById('deleteModelName').textContent = modelName;
+    
+    const modal = new bootstrap.Modal(document.getElementById('deleteModelModal'));
+    modal.show();
+}
+
+document.getElementById('confirmDeleteBtn').addEventListener('click', async function() {
+    if (!currentDeleteModelId) return;
+    
+    try {
+        await axios.delete(`/api/models/${currentDeleteModelId}`);
+        
+        showAlert('Model deleted successfully!', 'success');
+        
+        // Close modal and reload models
+        const modal = bootstrap.Modal.getInstance(document.getElementById('deleteModelModal'));
+        modal.hide();
+        
+        loadModels();
+        
+    } catch (error) {
+        console.error('Error deleting model:', error);
+        showAlert(error.response?.data?.detail || 'Error deleting model', 'danger');
+    }
+    
+    currentDeleteModelId = null;
+});
+
+// Utility function to show alerts
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(alertDiv);
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 5000);
+}
+
+// Reset form when modal is closed
+document.getElementById('addModelModal').addEventListener('hidden.bs.modal', function() {
+    document.getElementById('addModelForm').reset();
+    document.querySelector('.download-progress').classList.remove('show');
+    document.getElementById('downloadModelBtn').disabled = false;
+});
+</script>
+{% endblock %} 
