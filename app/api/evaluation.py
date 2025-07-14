@@ -1,10 +1,18 @@
 from datetime import datetime
+from typing import cast
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.corpus import get_corpus_content
-from app.database import Corpus, EvaluationResult, EvaluationRun, Question, get_db
+from app.database import (
+    Corpus,
+    EvaluationResult,
+    EvaluationRun,
+    ModelCatalogue,
+    Question,
+    get_db,
+)
 from app.models.schemas import EvaluationResult as EvaluationResultSchema
 from app.models.schemas import EvaluationRun as EvaluationRunSchema
 from app.models.schemas import (
@@ -160,17 +168,39 @@ async def run_evaluation_task(evaluation_id: int, db: Session):
         if not questions:
             raise Exception("No questions found for this corpus")
 
+        # Get model information from catalogue
+
+        # Look up embedding model
+        embedding_model_info = db.query(ModelCatalogue).filter(
+            ModelCatalogue.huggingface_name == evaluation.embedding_model,
+            ModelCatalogue.model_type == "embedding",
+            ModelCatalogue.is_active == 1
+        ).first()
+
+        # Look up reranker model if specified
+        reranker_model_info = None
+        if evaluation.reranker_model is not None:
+            reranker_model_info = db.query(ModelCatalogue).filter(
+                ModelCatalogue.huggingface_name == evaluation.reranker_model,
+                ModelCatalogue.model_type == "reranker",
+                ModelCatalogue.is_active == 1
+            ).first()
+
         # Initialize services
         llm_service = LLMServiceFactory.create_service(
             LLMProvider(evaluation.llm_provider), str(evaluation.llm_model)
         )
 
+        # Use local paths from catalogue if available, otherwise fall back to HuggingFace names
+        embedding_model_path = embedding_model_info.local_path if embedding_model_info else evaluation.embedding_model
+        reranker_model_path = reranker_model_info.local_path if reranker_model_info else evaluation.reranker_model
+
         retrieval_service = RetrievalServiceFactory.create_service(
             RetrievalStrategy(evaluation.retrieval_strategy),
             embedding_provider=evaluation.embedding_provider,
-            embedding_model=evaluation.embedding_model,
+            embedding_model=embedding_model_path,
             vector_store=evaluation.vector_store,
-            reranker_model=evaluation.reranker_model
+            reranker_model=reranker_model_path
         )
 
         evaluation_service = EvaluationService()
@@ -213,7 +243,7 @@ async def run_evaluation_task(evaluation_id: int, db: Session):
 
                 # Save evaluation result
                 await evaluation_service.save_evaluation_result(
-                    db, evaluation_id, Question(id=question.id), generated_answer, retrieved_docs, scores
+                    db, evaluation_id, Question(id=cast("int", question.id)), generated_answer, retrieved_docs, scores
                 )
 
                 # Update counters
