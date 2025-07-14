@@ -26,12 +26,24 @@ class TransformersRerankerService(RerankerService):
     def _load_model(self):
         """Load the reranker model"""
         try:
-            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-            self.model = AutoModelForSequenceClassification.from_pretrained(
-                self.model_name,
-                torch_dtype=torch.float16,
-                device_map="auto"
-            )
+            # Check if model_name is a local path
+            import os
+            if os.path.exists(self.model_name):
+                # Load from local path
+                self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+                self.model = AutoModelForSequenceClassification.from_pretrained(
+                    self.model_name,
+                    torch_dtype=torch.float16,
+                    device_map="auto"
+                )
+            else:
+                # Load from HuggingFace Hub
+                self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+                self.model = AutoModelForSequenceClassification.from_pretrained(
+                    self.model_name,
+                    torch_dtype=torch.float16,
+                    device_map="auto"
+                )
             self.model.eval()
         except Exception as e:
             raise Exception(f"Failed to load reranker model {self.model_name}: {e!s}") from e
@@ -94,7 +106,14 @@ class CrossEncoderRerankerService(RerankerService):
     def _load_model(self):
         """Load the cross-encoder model"""
         try:
-            self.model = CrossEncoder(self.model_name)
+            # Check if model_name is a local path
+            import os
+            if os.path.exists(self.model_name):
+                # Load from local path
+                self.model = CrossEncoder(self.model_name)
+            else:
+                # Load from HuggingFace Hub
+                self.model = CrossEncoder(self.model_name)
         except Exception as e:
             raise Exception(f"Failed to load cross-encoder model {self.model_name}: {e!s}") from e
 
